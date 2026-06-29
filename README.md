@@ -32,7 +32,7 @@ npm run dev
 
 ## Phase Roadmap
 
-- Phase 0: Foundation (current)
+- Phase 0: Foundation
 - Phase 1: Business Intake Engine
 - Phase 2: RAG Knowledge Base
 - Phase 3: Chatbot + Lead Capture
