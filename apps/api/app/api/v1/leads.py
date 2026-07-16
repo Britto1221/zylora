@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -7,10 +9,13 @@ from app.db.session import get_db
 from app.modules.leads.schemas import LeadRead, PublicLeadCreate
 
 router = APIRouter(prefix="/leads", tags=["leads"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/public", response_model=LeadRead, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 def create_public_lead(
+    request: Request,
     payload: PublicLeadCreate,
     db: Session = Depends(get_db),
 ) -> Lead:

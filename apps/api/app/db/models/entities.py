@@ -149,6 +149,11 @@ class CreditTransaction(Base):
     __tablename__ = "credit_transactions"
     __table_args__ = (
         Index("ix_credit_transactions_tenant_created", "tenant_id", "created_at"),
+        UniqueConstraint(
+            "tenant_id",
+            "idempotency_key",
+            name="uq_credit_transaction_idempotency",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
@@ -165,6 +170,7 @@ class CreditTransaction(Base):
     balance_after_micro_usd: Mapped[int] = mapped_column()
     description: Mapped[str] = mapped_column(String(255))
     external_reference: Mapped[str | None] = mapped_column(String(255))
+    idempotency_key: Mapped[str] = mapped_column(String(255))
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, nullable=False
@@ -240,3 +246,44 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, nullable=False
     )
+
+
+class Payment(Base, TimestampMixin):
+    __tablename__ = "payments"
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_payment_id", name="uq_provider_payment"),
+        Index("ix_payments_tenant_status", "tenant_id", "status"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
+    provider: Mapped[str] = mapped_column(String(40))
+    provider_payment_id: Mapped[str] = mapped_column(String(255))
+    provider_order_id: Mapped[str | None] = mapped_column(String(255))
+    charged_amount_minor: Mapped[int] = mapped_column(Integer)
+    charged_currency: Mapped[str] = mapped_column(String(3))
+    usd_credit_micro_amount: Mapped[int] = mapped_column(Integer, default=0)
+    settlement_amount_inr_minor: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(40), index=True)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class WebhookEvent(Base):
+    __tablename__ = "webhook_events"
+    __table_args__ = (
+        UniqueConstraint("provider", "event_id", name="uq_webhook_provider_event"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    provider: Mapped[str] = mapped_column(String(40), index=True)
+    event_id: Mapped[str] = mapped_column(String(255))
+    event_type: Mapped[str] = mapped_column(String(120), index=True)
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    processed: Mapped[bool] = mapped_column(Boolean, default=False)
+    processing_error: Mapped[str | None] = mapped_column(Text)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -51,6 +51,10 @@ def manual_top_up(
         amount_micro_usd=usd_to_micro_usd(amount),
         description=payload.description,
         external_reference=payload.external_reference,
+        idempotency_key=(
+            payload.external_reference
+            or f"manual-top-up:{tenant_id}:{payload.amount_usd}:{payload.description}"
+        ),
     )
     db.commit()
 

@@ -6,10 +6,12 @@ from app.db.models.entities import (
     Domain,
     Lead,
     NotificationJob,
+    Payment,
     Site,
     SiteVersion,
     Tenant,
     TenantMembership,
+    WebhookEvent,
 )
 
 __all__ = [
@@ -20,8 +22,10 @@ __all__ = [
     "Domain",
     "Lead",
     "NotificationJob",
+    "Payment",
     "Site",
     "SiteVersion",
     "Tenant",
     "TenantMembership",
+    "WebhookEvent",
 ]
