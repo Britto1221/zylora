@@ -1,1 +1,3 @@
-"""SEOExtract/AI SEO Audit Agent integration boundary."""
+from .audit import audit_snapshot
+
+__all__ = ["audit_snapshot"]

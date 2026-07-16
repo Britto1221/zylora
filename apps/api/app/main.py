@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 import sentry_sdk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,10 +13,22 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
-from app.core.exceptions import ZyloraError
 from app.core.middleware import RequestContextMiddleware, SecurityHeadersMiddleware
+from app.db.base import Base
+from app.db.seed import seed_development
+from app.db.session import SessionLocal, engine
 
 settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    if not settings.is_production:
+        Base.metadata.create_all(bind=engine)
+        with SessionLocal() as db:
+            seed_development(db)
+    yield
+
 
 if settings.sentry_dsn:
     sentry_sdk.init(
@@ -28,13 +42,13 @@ limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
     title="Zylora API",
-    version="2.1.0",
-    description="Multi-tenant managed website and lead platform.",
+    version="3.0.0",
+    description="Managed multi-tenant websites, leads, messaging, SEO, and client operations.",
     docs_url=None if settings.is_production else "/docs",
     redoc_url=None if settings.is_production else "/redoc",
     openapi_url=None if settings.is_production else "/openapi.json",
+    lifespan=lifespan,
 )
-
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(RequestContextMiddleware)
@@ -48,27 +62,20 @@ app.add_middleware(
     allow_origins=[settings.web_origin],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-Worker-Token"],
 )
 
 
-@app.exception_handler(ZyloraError)
-async def handle_zylora_error(_: Request, exc: ZyloraError) -> JSONResponse:
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"error": {"code": exc.code, "message": exc.message}},
-    )
-
-
 @app.exception_handler(Exception)
-async def handle_unexpected_error(request: Request, _: Exception) -> JSONResponse:
+async def unhandled_error(request: Request, exc: Exception) -> JSONResponse:
+    # Keep provider and database details away from clients.
     return JSONResponse(
         status_code=500,
         content={
             "error": {
                 "code": "internal_error",
                 "message": "An unexpected error occurred.",
-                "request_id": getattr(request.state, "request_id", None),
+                "requestId": getattr(request.state, "request_id", None),
             }
         },
     )

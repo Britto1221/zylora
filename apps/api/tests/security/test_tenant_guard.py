@@ -1,19 +1,23 @@
-from uuid import uuid4
+from __future__ import annotations
 
-import pytest
-from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
-from app.core.security import AuthenticatedUser, Role, require_tenant_access
+from app.core.security import create_development_token
 
 
-def test_cross_tenant_access_is_denied() -> None:
-    user = AuthenticatedUser(
-        id=uuid4(),
-        role=Role.CLIENT_ADMIN,
-        tenant_id=uuid4(),
+def test_user_without_membership_cannot_access_another_tenant(
+    client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    created = client.post(
+        "/api/v1/tenants",
+        headers=admin_headers,
+        json={"name": "Private Tenant", "industry": "general", "template_key": "general"},
     )
-
-    with pytest.raises(HTTPException) as error:
-        require_tenant_access(uuid4(), user)
-
-    assert error.value.status_code == 403
+    tenant_id = created.json()["tenant"]["id"]
+    outsider = create_development_token("outsider@example.com")
+    response = client.get(
+        f"/api/v1/tenants/{tenant_id}",
+        headers={"Authorization": f"Bearer {outsider}"},
+    )
+    assert response.status_code == 403

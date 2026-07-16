@@ -1,33 +1,8 @@
-import type { PublishedWebsite } from "../shared/types";
+import { exampleWebsite } from "../shared/examples";
 
-export const schoolTemplate: PublishedWebsite = {
-  tenantSlug: "example-school",
-  templateKey: "school",
-  theme: {
-    primaryColor: "#18181b",
-    accentColor: "#2563eb",
-    backgroundColor: "#ffffff",
-    headingFont: "Inter",
-    bodyFont: "Inter",
-    radius: 16
-  },
-  sections: [
-    {
-      id: "hero",
-      type: "hero",
-      visible: true,
-      content: {
-        heading: "School landing page",
-        body: "Replace this content from the Zylora admin dashboard."
-      }
-    },
-    {
-      id: "lead-form",
-      type: "lead-form",
-      visible: true,
-      content: {
-        heading: "Contact us"
-      }
-    }
-  ]
-};
+export const schoolTemplate = exampleWebsite(
+  "school",
+  "Northfield School",
+  "Education built around every learner",
+  ["Admissions", "Primary education", "Student activities"],
+);

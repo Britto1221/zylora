@@ -1,7 +1,7 @@
 {
   "name": "zylora",
   "private": true,
-  "version": "2.0.0",
+  "version": "3.0.0",
   "workspaces": [
     "apps/web",
     "packages/ui"
@@ -12,6 +12,11 @@
     "lint:web": "npm --workspace apps/web run lint",
     "typecheck:web": "npm --workspace apps/web run typecheck",
     "security:check": "bash scripts/production_check.sh",
-    "openapi:generate": "python scripts/generate_openapi.py"
+    "openapi:generate": "python scripts/generate_openapi.py",
+    "dev": "npm run dev:web",
+    "test:api": "cd apps/api && pytest",
+    "test:web": "npm --workspace apps/web run test",
+    "test:e2e": "npm --workspace apps/web run test:e2e",
+    "quality": "npm run typecheck:web && npm run lint:web && npm run build:web"
   }
 }

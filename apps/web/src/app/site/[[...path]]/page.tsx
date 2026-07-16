@@ -1,47 +1,38 @@
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-
-import { apiFetch } from "@/lib/api/client";
 import { WebsiteRenderer } from "@/site-templates/shared/renderer";
 import type { PublishedWebsite } from "@/site-templates/shared/types";
 
-type ApiSite = {
-  site_id: string;
-  version_id: string;
-  tenant_id: string;
-  template_key: "school" | "clinic" | "coaching";
-  content: {
-    tenantSlug?: string;
-    sections?: PublishedWebsite["sections"];
-  };
-  theme: PublishedWebsite["theme"];
-};
+const API_URL =
+  process.env.API_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:8000/api/v1";
 
-export default async function PublicTenantSite() {
+export const dynamic = "force-dynamic";
+
+export default async function PublicSitePage() {
   const requestHeaders = await headers();
-  const host =
-    requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+  const host = (
+    requestHeaders.get("x-zylora-host") ??
+    requestHeaders.get("x-forwarded-host") ??
+    requestHeaders.get("host") ??
+    ""
+  ).split(":")[0];
 
-  if (!host) {
-    notFound();
-  }
-
-  try {
-    const site = await apiFetch<ApiSite>(
-      `/sites/public/resolve?host=${encodeURIComponent(host)}`,
-    );
-
-    return (
-      <WebsiteRenderer
-        website={{
-          tenantSlug: site.content.tenantSlug ?? site.tenant_id,
-          templateKey: site.template_key,
-          theme: site.theme,
-          sections: site.content.sections ?? [],
-        }}
-      />
-    );
-  } catch {
-    notFound();
-  }
+  const response = await fetch(`${API_URL}/sites/public/resolve?host=${encodeURIComponent(host)}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) notFound();
+  const site = await response.json();
+  const website: PublishedWebsite = {
+    siteId: site.siteId,
+    tenantId: site.tenantId,
+    tenantSlug: site.tenantSlug,
+    templateKey: site.templateKey,
+    content: site.content,
+    theme: site.theme,
+    seo: site.seo,
+    features: site.features ?? {},
+  };
+  return <WebsiteRenderer website={website} />;
 }

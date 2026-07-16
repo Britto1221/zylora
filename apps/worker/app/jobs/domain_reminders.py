@@ -1,10 +1,12 @@
+from app.api import internal_request
 from app.main import app
 
 
-@app.task(name="zylora.send_domain_renewal_reminders")
+@app.task(
+    name="zylora.send_domain_renewal_reminders",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    max_retries=3,
+)
 def send_domain_renewal_reminders() -> dict:
-    """
-    Send reminders at 60, 30, 15, and 7 days before expiry.
-    After the final reminder, non-renewal remains the client's responsibility.
-    """
-    return {"status": "scheduled"}
+    return internal_request("POST", "/domain-reminders/run")

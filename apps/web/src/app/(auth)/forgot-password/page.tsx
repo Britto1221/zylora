@@ -1,12 +1,16 @@
 export default function ForgotPasswordPage() {
-  const resetUrl = process.env.NEXT_PUBLIC_AUTH_PASSWORD_RESET_URL ?? "#";
-
   return (
-    <main>
-      <h1>Reset your password</h1>
-      <section className="card">
-        <p>Password reset is handled by the configured identity provider.</p>
-        <a href={resetUrl}>Continue to password reset</a>
+    <main className="login-shell">
+      <section className="login-art"><h1>Password recovery.</h1></section>
+      <section className="login-form-wrap">
+        <div className="login-card">
+          <p className="eyebrow">Account security</p>
+          <h2>Reset your password</h2>
+          <p className="lede">
+            In production, password recovery is completed by the configured OIDC identity provider. Add its hosted recovery URL to the deployment environment.
+          </p>
+          <a className="button" href={process.env.NEXT_PUBLIC_AUTH_PASSWORD_RESET_URL ?? "/login"}>Continue</a>
+        </div>
       </section>
     </main>
   );

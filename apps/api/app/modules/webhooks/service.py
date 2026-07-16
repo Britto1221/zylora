@@ -14,12 +14,7 @@ def verify_hmac_sha256(*, body: bytes, signature: str, secret: str) -> bool:
     if not signature or not secret:
         return False
     expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-    supplied = signature.removeprefix("sha256=")
-    return hmac.compare_digest(expected, supplied)
-
-
-def payload_sha256(body: bytes) -> str:
-    return hashlib.sha256(body).hexdigest()
+    return hmac.compare_digest(expected, signature.removeprefix("sha256="))
 
 
 def register_webhook_event(
@@ -32,18 +27,16 @@ def register_webhook_event(
 ) -> tuple[WebhookEvent, bool]:
     existing = db.scalar(
         select(WebhookEvent).where(
-            WebhookEvent.provider == provider,
-            WebhookEvent.event_id == event_id,
+            WebhookEvent.provider == provider, WebhookEvent.event_id == event_id
         )
     )
-    if existing is not None:
+    if existing:
         return existing, False
-
     event = WebhookEvent(
         provider=provider,
         event_id=event_id,
         event_type=event_type,
-        payload_hash=payload_sha256(body),
+        payload_hash=hashlib.sha256(body).hexdigest(),
     )
     db.add(event)
     db.flush()

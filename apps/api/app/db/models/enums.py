@@ -30,6 +30,8 @@ class LeadStatus(StrEnum):
 class CreditTransactionType(StrEnum):
     PURCHASE = "PURCHASE"
     DEDUCTION = "DEDUCTION"
+    RESERVATION = "RESERVATION"
+    RELEASE = "RELEASE"
     REFUND = "REFUND"
     ADJUSTMENT = "ADJUSTMENT"
 
@@ -39,8 +41,49 @@ class NotificationStatus(StrEnum):
     CREDIT_RESERVED = "CREDIT_RESERVED"
     SUBMITTED = "SUBMITTED"
     DELIVERED = "DELIVERED"
+    READ = "READ"
     FAILED = "FAILED"
     SKIPPED_INSUFFICIENT_CREDITS = "SKIPPED_INSUFFICIENT_CREDITS"
     SKIPPED_NO_CONSENT = "SKIPPED_NO_CONSENT"
     SKIPPED_DISABLED = "SKIPPED_DISABLED"
     REFUNDED = "REFUNDED"
+
+
+class DomainStatus(StrEnum):
+    PENDING = "PENDING"
+    VERIFYING = "VERIFYING"
+    ACTIVE = "ACTIVE"
+    EXPIRING = "EXPIRING"
+    EXPIRED = "EXPIRED"
+    FAILED = "FAILED"
+
+
+class SeoAuditStatus(StrEnum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class DocumentStatus(StrEnum):
+    UPLOADED = "UPLOADED"
+    PROCESSING = "PROCESSING"
+    READY = "READY"
+    FAILED = "FAILED"
+
+
+class ChangeRequestStatus(StrEnum):
+    OPEN = "OPEN"
+    QUOTED = "QUOTED"
+    APPROVED = "APPROVED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    REJECTED = "REJECTED"
+
+
+class InvoiceStatus(StrEnum):
+    DRAFT = "DRAFT"
+    ISSUED = "ISSUED"
+    PAID = "PAID"
+    VOID = "VOID"
+    OVERDUE = "OVERDUE"

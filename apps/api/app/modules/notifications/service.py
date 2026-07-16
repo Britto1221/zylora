@@ -2,45 +2,77 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models.entities import Lead, NotificationJob
+from app.db.models.entities import Lead, NotificationJob, NotificationSetting, Tenant
 from app.db.models.enums import NotificationStatus
 
 
-def create_whatsapp_jobs(
-    db: Session,
-    *,
-    lead: Lead,
-    client_phone: str | None,
-    visitor_template: str | None = None,
-    business_template: str | None = None,
-) -> list[NotificationJob]:
+def get_or_create_settings(db: Session, tenant_id: UUID) -> NotificationSetting:
+    setting = db.scalar(
+        select(NotificationSetting).where(NotificationSetting.tenant_id == tenant_id)
+    )
+    if setting:
+        return setting
+    setting = NotificationSetting(tenant_id=tenant_id)
+    db.add(setting)
+    db.flush()
+    return setting
+
+
+def create_jobs_for_lead(db: Session, lead: Lead) -> list[NotificationJob]:
+    setting = get_or_create_settings(db, lead.tenant_id)
+    tenant = db.get(Tenant, lead.tenant_id)
     jobs: list[NotificationJob] = []
 
-    if client_phone and business_template:
+    if setting.business_enabled and tenant and tenant.whatsapp_number:
         jobs.append(
             NotificationJob(
                 tenant_id=lead.tenant_id,
                 lead_id=lead.id,
                 recipient_type="BUSINESS",
-                recipient=client_phone,
-                template_name=business_template,
-                status=NotificationStatus.PENDING,
+                recipient=tenant.whatsapp_number,
+                template_name=setting.business_template,
+                template_variables={
+                    "lead_name": lead.name,
+                    "service": lead.service or "General enquiry",
+                    "phone": lead.phone or "",
+                },
+                charge_micro_usd=setting.business_charge_micro_usd,
+                idempotency_key=f"lead:{lead.id}:business",
             )
         )
 
-    if lead.phone and lead.whatsapp_consent and visitor_template:
-        jobs.append(
-            NotificationJob(
-                tenant_id=lead.tenant_id,
-                lead_id=lead.id,
-                recipient_type="VISITOR",
-                recipient=lead.phone,
-                template_name=visitor_template,
-                status=NotificationStatus.PENDING,
+    if setting.visitor_enabled and lead.phone:
+        if lead.whatsapp_consent:
+            jobs.append(
+                NotificationJob(
+                    tenant_id=lead.tenant_id,
+                    lead_id=lead.id,
+                    recipient_type="VISITOR",
+                    recipient=lead.phone,
+                    template_name=setting.visitor_template,
+                    template_variables={"lead_name": lead.name},
+                    charge_micro_usd=setting.visitor_charge_micro_usd,
+                    idempotency_key=f"lead:{lead.id}:visitor",
+                )
             )
-        )
+        else:
+            jobs.append(
+                NotificationJob(
+                    tenant_id=lead.tenant_id,
+                    lead_id=lead.id,
+                    recipient_type="VISITOR",
+                    recipient=lead.phone,
+                    template_name=setting.visitor_template,
+                    template_variables={"lead_name": lead.name},
+                    charge_micro_usd=0,
+                    idempotency_key=f"lead:{lead.id}:visitor",
+                    status=NotificationStatus.SKIPPED_NO_CONSENT,
+                )
+            )
 
     db.add_all(jobs)
+    db.flush()
     return jobs

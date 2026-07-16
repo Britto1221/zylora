@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from uuid import UUID
+from datetime import datetime, timedelta, timezone
+from uuid import UUID, uuid5, NAMESPACE_DNS
 
 import jwt
-from fastapi import Depends, HTTPException, Path, status
+from fastapi import Depends, Header, HTTPException, Path, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWKClient
 from sqlalchemy import select
@@ -27,6 +28,25 @@ class AuthenticatedUser:
     is_super_admin: bool
 
 
+def create_development_token(email: str) -> str:
+    if settings.is_production:
+        raise RuntimeError("Development authentication is disabled in production.")
+    normalized = email.strip().lower()
+    now = datetime.now(timezone.utc)
+    return jwt.encode(
+        {
+            "sub": str(uuid5(NAMESPACE_DNS, normalized)),
+            "email": normalized,
+            "iat": int(now.timestamp()),
+            "exp": int((now + timedelta(hours=12)).timestamp()),
+            "iss": "zylora-development",
+            "aud": settings.auth_audience,
+        },
+        settings.dev_auth_secret,
+        algorithm="HS256",
+    )
+
+
 def get_jwks_client() -> PyJWKClient:
     global _jwks_client
     if _jwks_client is None:
@@ -38,6 +58,15 @@ def get_jwks_client() -> PyJWKClient:
 
 def decode_access_token(token: str) -> dict:
     try:
+        if not settings.is_production and not settings.auth_jwks_url:
+            return jwt.decode(
+                token,
+                settings.dev_auth_secret,
+                algorithms=["HS256"],
+                audience=settings.auth_audience,
+                issuer="zylora-development",
+                options={"require": ["exp", "iat", "sub"]},
+            )
         signing_key = get_jwks_client().get_signing_key_from_jwt(token)
         return jwt.decode(
             token,
@@ -59,15 +88,10 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> AuthenticatedUser:
     claims = decode_access_token(credentials.credentials)
-
     try:
         user_id = UUID(str(claims["sub"]))
     except (KeyError, ValueError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token subject is not a valid user identifier.",
-        ) from exc
-
+        raise HTTPException(status_code=401, detail="Invalid token subject.") from exc
     email = str(claims.get("email", "")).strip().lower()
     return AuthenticatedUser(
         id=user_id,
@@ -80,11 +104,18 @@ def require_super_admin(
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> AuthenticatedUser:
     if not user.is_super_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Super-admin access required.",
-        )
+        raise HTTPException(status_code=403, detail="Super-admin access required.")
     return user
+
+
+def _membership(db: Session, tenant_id: UUID, user_id: UUID) -> TenantMembership | None:
+    return db.scalar(
+        select(TenantMembership).where(
+            TenantMembership.tenant_id == tenant_id,
+            TenantMembership.user_id == user_id,
+            TenantMembership.is_active.is_(True),
+        )
+    )
 
 
 def require_tenant_access(
@@ -92,22 +123,9 @@ def require_tenant_access(
     user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> AuthenticatedUser:
-    if user.is_super_admin:
+    if user.is_super_admin or _membership(db, tenant_id, user.id):
         return user
-
-    membership = db.scalar(
-        select(TenantMembership).where(
-            TenantMembership.tenant_id == tenant_id,
-            TenantMembership.user_id == user.id,
-            TenantMembership.is_active.is_(True),
-        )
-    )
-    if membership is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Cross-tenant access denied.",
-        )
-    return user
+    raise HTTPException(status_code=403, detail="Cross-tenant access denied.")
 
 
 def require_tenant_admin(
@@ -117,18 +135,12 @@ def require_tenant_admin(
 ) -> AuthenticatedUser:
     if user.is_super_admin:
         return user
+    membership = _membership(db, tenant_id, user.id)
+    if membership and membership.role == MembershipRole.CLIENT_ADMIN:
+        return user
+    raise HTTPException(status_code=403, detail="Client-admin access required.")
 
-    membership = db.scalar(
-        select(TenantMembership).where(
-            TenantMembership.tenant_id == tenant_id,
-            TenantMembership.user_id == user.id,
-            TenantMembership.is_active.is_(True),
-            TenantMembership.role == MembershipRole.CLIENT_ADMIN,
-        )
-    )
-    if membership is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Client-admin access required.",
-        )
-    return user
+
+def require_worker_token(x_worker_token: str = Header(default="")) -> None:
+    if x_worker_token != settings.internal_worker_token:
+        raise HTTPException(status_code=401, detail="Invalid worker token.")

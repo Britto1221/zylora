@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     environment: str = "development"
     app_name: str = "Zylora"
-    database_url: str = "postgresql+psycopg://zylora:zylora@localhost:5432/zylora"
+    database_url: str = "sqlite:///./zylora-dev.db"
     redis_url: str = "redis://localhost:6379/0"
     web_origin: str = "http://localhost:3000"
     public_api_url: str = "http://localhost:8000/api/v1"
@@ -16,9 +16,12 @@ class Settings(BaseSettings):
     auth_audience: str = "zylora-api"
     auth_jwks_url: str = ""
     auth_algorithms: str = "RS256"
-    super_admin_emails: str = ""
+    super_admin_emails: str = "admin@zylora.dev"
+    dev_auth_secret: str = "zylora-development-secret-change-me"
+    dev_admin_password: str = "zylora-admin"
 
     encryption_key: str = ""
+    internal_worker_token: str = "zylora-worker-development-token"
 
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
@@ -28,6 +31,7 @@ class Settings(BaseSettings):
     whatsapp_phone_number_id: str = ""
     whatsapp_verify_token: str = ""
     whatsapp_app_secret: str = ""
+    whatsapp_api_version: str = "v21.0"
 
     openai_api_key: str = ""
     anthropic_api_key: str = ""
@@ -38,10 +42,16 @@ class Settings(BaseSettings):
     s3_bucket: str = ""
     s3_access_key: str = ""
     s3_secret_key: str = ""
+    storage_local_path: str = "./storage"
+    max_upload_bytes: int = 10_000_000
+
+    email_provider: str = "console"
+    email_from: str = "notifications@zylora.local"
+    resend_api_key: str = ""
 
     sentry_dsn: str = ""
     log_level: str = "INFO"
-    trusted_hosts: str = "localhost,127.0.0.1"
+    trusted_hosts: str = "localhost,127.0.0.1,testserver"
 
     model_config = SettingsConfigDict(
         env_file=("../../.env", ".env"),
@@ -80,7 +90,6 @@ class Settings(BaseSettings):
     def validate_production(self) -> None:
         if not self.is_production:
             return
-
         required = {
             "AUTH_ISSUER": self.auth_issuer,
             "AUTH_JWKS_URL": self.auth_jwks_url,
@@ -88,12 +97,16 @@ class Settings(BaseSettings):
             "DATABASE_URL": self.database_url,
             "REDIS_URL": self.redis_url,
             "WEB_ORIGIN": self.web_origin,
+            "ENCRYPTION_KEY": self.encryption_key,
+            "INTERNAL_WORKER_TOKEN": self.internal_worker_token,
         }
         missing = [name for name, value in required.items() if not value]
         if missing:
             raise RuntimeError(
                 f"Missing required production settings: {', '.join(sorted(missing))}"
             )
+        if self.database_url.startswith("sqlite"):
+            raise RuntimeError("SQLite must not be used in production.")
 
 
 @lru_cache
