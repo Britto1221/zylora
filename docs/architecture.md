@@ -1,23 +1,12 @@
 # Zylora Architecture
 
-## Overview
-Zylora is a multi-tenant AI business automation platform.
-Each business (client) is isolated by business_id across all data stores.
+Zylora is a managed, multi-tenant platform with:
 
-## Data Stores
-- **Postgres** — businesses, documents, chat_sessions, messages, leads, recommendations
-- **Pinecone** — vector embeddings, namespaced per business_id
-- **Cloudflare R2** — uploaded PDFs and logos
+- `apps/web`: Next.js marketing site, super-admin dashboard, client portal, previews, and public tenant rendering.
+- `apps/api`: FastAPI authorization, tenants, sites, leads, publishing, credits, domains, payments, and integrations.
+- `apps/worker`: asynchronous WhatsApp, SEO, domain reminder, document, and publishing jobs.
+- `packages/zylora-ai`: reusable intake, RAG, agent, reporting, and SEO logic.
+- PostgreSQL: source of truth.
+- Redis/Celery: asynchronous work.
 
-## Services
-- **FastAPI** — REST API (Railway)
-- **Next.js** — Admin dashboard (Vercel)
-- **LangSmith** — Agent observability
-
-## Agent Flow
-Query → Hybrid Retrieval (BM25 + Pinecone) → GPT-4o Mini → Confidence Check → Lead Detection → Response
-
-## Isolation Strategy
-Every Pinecone query filters by namespace=business_id.
-Every Postgres query filters by business_id.
-No cross-client data leakage is possible by design.
+Public lead capture must succeed even when WhatsApp, AI, or credits are unavailable.

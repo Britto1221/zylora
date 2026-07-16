@@ -1,23 +1,27 @@
-version: '3.8'
-
 services:
   postgres:
-    image: postgres:15
-    container_name: zylora_postgres
+    image: postgres:16
     environment:
-      POSTGRES_USER: zylora
-      POSTGRES_PASSWORD: password
       POSTGRES_DB: zylora
+      POSTGRES_USER: zylora
+      POSTGRES_PASSWORD: zylora
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - zylora_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zylora -d zylora"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7-alpine
-    container_name: zylora_redis
     ports:
       - "6379:6379"
+    volumes:
+      - zylora_redis:/data
 
 volumes:
-  postgres_data:
+  zylora_postgres:
+  zylora_redis:

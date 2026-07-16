@@ -1,44 +1,49 @@
-# Zylora — AI Business Automation Copilot
+# Zylora
 
-Zylora onboards any local business via URL or documents, builds a business profile,
-deploys a RAG-powered chatbot with lead capture, and outputs analytics and PDF reports.
+Managed multi-tenant landing pages, leads, optional WhatsApp follow-up, SEO,
+client dashboards, domains, credits, and paid custom development.
 
-## Structure
-
-- `frontend/` — Next.js admin dashboard + embeddable widget
-- `backend/` — FastAPI REST API
-- `core/` — All AI logic (intake, RAG, agent, leads, reports)
-- `scripts/` — Admin and utility scripts
-- `docs/` — Architecture and API documentation
-
-## Quick Start
+## Local setup
 
 ```bash
-# Start Postgres and Redis
-docker-compose up -d
+cp .env.example .env
+docker compose up -d
 
-# Backend
-cd backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload
+python -m venv .venv
+source .venv/Scripts/activate  # Git Bash on Windows
+# source .venv/bin/activate    # macOS/Linux
 
-# Frontend
-cd frontend
+python -m pip install --upgrade pip
+python -m pip install -e ./packages/zylora-ai
+python -m pip install -e "./apps/api[dev]"
+python -m pip install -e "./apps/worker[dev]"
+
 npm install
 
+cd apps/api
+alembic revision --autogenerate -m "initial schema"
+alembic upgrade head
+cd ../..
 
-
-npm run dev
+npm run dev:web
 ```
 
-## Phase Roadmap
+In another terminal:
 
-- Phase 0: Foundation
-- Phase 1: Business Intake Engine
-- Phase 2: RAG Knowledge Base
-- Phase 3: Chatbot + Lead Capture
-- Phase 4: Automation Recommendations
-- Phase 5: PDF Report + Dashboard
-- Phase 6: Polish + Deploy
+```bash
+cd apps/api
+uvicorn app.main:app --reload --port 8000
+```
+
+In another terminal:
+
+```bash
+cd apps/worker
+python -m app.main
+```
+
+## Important
+
+The repository now contains production-oriented boundaries, but external
+authentication, Razorpay/Stripe, WhatsApp Cloud API, domain-provider APIs,
+storage, and deployment accounts still require real credentials and provider setup.
