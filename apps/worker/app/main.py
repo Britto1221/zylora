@@ -20,6 +20,7 @@ app = Celery(
     broker=settings.redis_url,
     backend=settings.redis_url.replace("/0", "/1"),
     include=[
+        "app.jobs.billing",
         "app.jobs.whatsapp_notifications",
         "app.jobs.domain_reminders",
         "app.jobs.seo_audits",
@@ -43,6 +44,14 @@ app.conf.update(
         "release-expired-credit-reservations": {
             "task": "zylora.cleanup_credit_reservations",
             "schedule": 300.0,
+        },
+        "monthly-recurring-invoices": {
+            "task": "zylora.generate_monthly_recurring_invoices",
+            "schedule": crontab(day_of_month="1", hour=0, minute=15),
+        },
+        "daily-billing-dunning": {
+            "task": "zylora.evaluate_billing_dunning",
+            "schedule": crontab(hour=1, minute=15),
         },
         "daily-domain-renewal-reminders": {
             "task": "zylora.send_domain_renewal_reminders",

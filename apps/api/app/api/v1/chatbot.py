@@ -6,16 +6,20 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from zylora_ai.agents.graph import build_grounded_prompt
+from zylora_ai.rag.retriever import retrieve
 
 from app.core.security import AuthenticatedUser, require_tenant_access
 from app.core.serialization import model_dict
 from app.db.models.entities import (
-    ChatConversation, ChatMessage, DocumentChunk, FeatureFlag, Site,
+    ChatConversation,
+    ChatMessage,
+    DocumentChunk,
+    FeatureFlag,
+    Site,
 )
-from app.db.session import get_db
+from app.db.session import get_db, set_public_tenant_context
 from app.modules.ai_gateway.service import generate_answer
-from zylora_ai.agents.graph import build_grounded_prompt
-from zylora_ai.rag.retriever import retrieve
 
 router = APIRouter(prefix="/chatbot", tags=["chatbot"])
 
@@ -42,16 +46,24 @@ def chatbot_enabled(db: Session, tenant_id: UUID) -> bool:
 
 @router.post("/public")
 def public_chat(payload: ChatRequest, db: Session = Depends(get_db)) -> dict:
+    if payload.site_id is None:
+        raise HTTPException(status_code=422, detail="site_id is required.")
+    site = db.scalar(
+        select(Site).where(
+            Site.id == payload.site_id,
+            Site.tenant_id == payload.tenant_id,
+            Site.published_version_id.is_not(None),
+        )
+    )
+    if not site:
+        raise HTTPException(status_code=404, detail="Published website not found.")
+    set_public_tenant_context(db, payload.tenant_id)
     if not chatbot_enabled(db, payload.tenant_id):
         raise HTTPException(status_code=404, detail="Chatbot is not enabled.")
-    if payload.site_id:
-        site = db.scalar(
-            select(Site).where(Site.id == payload.site_id, Site.tenant_id == payload.tenant_id)
-        )
-        if not site:
-            raise HTTPException(status_code=404, detail="Website not found.")
 
-    conversation = db.get(ChatConversation, payload.conversation_id) if payload.conversation_id else None
+    conversation = (
+        db.get(ChatConversation, payload.conversation_id) if payload.conversation_id else None
+    )
     if conversation and conversation.tenant_id != payload.tenant_id:
         raise HTTPException(status_code=403, detail="Conversation does not belong to this website.")
     if not conversation:
@@ -84,13 +96,16 @@ def public_chat(payload: ChatRequest, db: Session = Depends(get_db)) -> dict:
         }
         for record in records
     ]
-    selected = [item for item in retrieve(payload.question, candidates, limit=4) if item["score"] > 0.05]
+    selected = [
+        item for item in retrieve(payload.question, candidates, limit=4) if item["score"] > 0.05
+    ]
     if selected:
         system, prompt = build_grounded_prompt(payload.question, selected)
         generated = generate_answer(system=system, prompt=prompt)
         answer = generated or (
             selected[0]["content"][:600]
-            + "\n\nThis answer is based on the business documents. Please contact the business for confirmation."
+            + "\n\nThis answer is based on the business documents. "
+            + "Please contact the business for confirmation."
         )
         citations = [
             {"source": item["source"], "chunkId": item["id"], "score": round(item["score"], 3)}
@@ -151,4 +166,7 @@ def conversation_messages(
         .where(ChatMessage.conversation_id == conversation.id)
         .order_by(ChatMessage.created_at)
     ).all()
-    return {"conversation": model_dict(conversation), "messages": [model_dict(item) for item in messages]}
+    return {
+        "conversation": model_dict(conversation),
+        "messages": [model_dict(item) for item in messages],
+    }

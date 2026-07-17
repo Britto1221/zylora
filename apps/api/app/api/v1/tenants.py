@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -8,12 +10,26 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app.core.security import AuthenticatedUser, get_current_user, require_super_admin, require_tenant_access
+from app.core.security import (
+    AuthenticatedUser,
+    get_current_user,
+    require_super_admin,
+    require_tenant_access,
+    require_tenant_admin,
+)
 from app.core.serialization import model_dict
 from app.db.models.entities import (
-    CreditAccount, FeatureFlag, NotificationSetting, Site, SiteVersion, Tenant, TenantMembership,
+    CreditAccount,
+    FeatureFlag,
+    NotificationSetting,
+    Site,
+    SiteVersion,
+    Tenant,
+    TenantMembership,
 )
+from app.db.models.enums import BillingStatus
 from app.db.session import get_db
+from app.modules.admin_clients.service import client_health
 from app.modules.audit.service import record_audit
 from app.modules.sites.defaults import default_content, default_seo, default_theme
 
@@ -55,23 +71,73 @@ def slugify(value: str) -> str:
 @router.get("")
 def list_tenants(
     search: str = "",
+    billing_status: BillingStatus | None = None,
+    site_status: Literal["live", "draft"] | None = None,
+    last_login_from: datetime | None = None,
+    last_login_to: datetime | None = None,
+    last_login_missing: bool = False,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=100),
     db: Session = Depends(get_db),
     _: AuthenticatedUser = Depends(require_super_admin),
 ) -> dict:
-    statement = select(Tenant)
-    count_statement = select(func.count(Tenant.id))
+    statement = select(Tenant, Site).outerjoin(Site, Site.tenant_id == Tenant.id)
+    count_statement = select(func.count(func.distinct(Tenant.id))).outerjoin(
+        Site, Site.tenant_id == Tenant.id
+    )
+    conditions = []
     if search:
         pattern = f"%{search.strip()}%"
-        condition = or_(Tenant.name.ilike(pattern), Tenant.slug.ilike(pattern), Tenant.email.ilike(pattern))
-        statement = statement.where(condition)
-        count_statement = count_statement.where(condition)
+        conditions.append(
+            or_(
+                Tenant.name.ilike(pattern),
+                Tenant.slug.ilike(pattern),
+                Tenant.email.ilike(pattern),
+            )
+        )
+    if billing_status is not None:
+        conditions.append(Tenant.billing_status == billing_status)
+    if site_status == "live":
+        conditions.append(Site.published_version_id.is_not(None))
+    elif site_status == "draft":
+        conditions.append(
+            or_(Site.id.is_(None), Site.published_version_id.is_(None))
+        )
+    if last_login_missing:
+        conditions.append(Tenant.last_login_at.is_(None))
+    else:
+        if last_login_from is not None:
+            conditions.append(Tenant.last_login_at >= last_login_from)
+        if last_login_to is not None:
+            conditions.append(Tenant.last_login_at <= last_login_to)
+    if conditions:
+        statement = statement.where(*conditions)
+        count_statement = count_statement.where(*conditions)
+
     total = db.scalar(count_statement) or 0
-    tenants = db.scalars(
-        statement.order_by(Tenant.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    rows = db.execute(
+        statement.order_by(Tenant.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     ).all()
-    return {"items": [model_dict(item) for item in tenants], "total": total, "page": page, "pageSize": page_size}
+    items = []
+    for tenant, site in rows:
+        item = model_dict(tenant)
+        health = client_health(tenant, site)
+        item.update(
+            {
+                "site_status": health["siteStatus"],
+                "health_status": health["label"],
+                "health_reasons": health["reasons"],
+            }
+        )
+        items.append(item)
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "pageSize": page_size,
+    }
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -125,18 +191,26 @@ def create_tenant(
     db.add(CreditAccount(tenant_id=tenant.id))
     db.add(NotificationSetting(tenant_id=tenant.id))
     for key, enabled in {
-        "client_dashboard": True, "whatsapp": False, "seo": True,
-        "chatbot": False, "analytics": True, "custom_domain": True,
+        "client_dashboard": True,
+        "whatsapp": False,
+        "seo": True,
+        "chatbot": False,
+        "analytics": True,
+        "custom_domain": True,
     }.items():
         db.add(FeatureFlag(tenant_id=tenant.id, key=key, enabled=enabled))
 
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant.id, entity_type="tenant",
-        entity_id=tenant.id, action="tenant.created", payload={"site_id": str(site.id)},
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant.id,
+        entity_type="tenant",
+        entity_id=tenant.id,
+        action="tenant.created",
+        payload={"site_id": str(site.id)},
     )
     db.commit()
     return {"tenant": model_dict(tenant), "site": model_dict(site), "draft": model_dict(version)}
-
 
 
 @router.get("/slug/{slug}")
@@ -172,10 +246,12 @@ def get_tenant(
         raise HTTPException(status_code=404, detail="Client not found.")
     site = db.scalar(select(Site).where(Site.tenant_id == tenant_id))
     flags = db.scalars(select(FeatureFlag).where(FeatureFlag.tenant_id == tenant_id)).all()
+    health = client_health(tenant, site)
     return {
         "tenant": model_dict(tenant),
         "site": model_dict(site) if site else None,
         "features": {flag.key: flag.enabled for flag in flags},
+        "health": health,
     }
 
 
@@ -184,7 +260,7 @@ def update_tenant(
     tenant_id: UUID,
     payload: TenantUpdate,
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_tenant_access),
+    user: AuthenticatedUser = Depends(require_tenant_admin),
 ) -> dict:
     tenant = db.get(Tenant, tenant_id)
     if not tenant:
@@ -194,8 +270,12 @@ def update_tenant(
             value = str(value)
         setattr(tenant, key, value)
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant.id,
-        entity_type="tenant", entity_id=tenant.id, action="tenant.updated",
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant.id,
+        entity_type="tenant",
+        entity_id=tenant.id,
+        action="tenant.updated",
         payload=payload.model_dump(exclude_unset=True, mode="json"),
     )
     db.commit()
@@ -219,9 +299,13 @@ def update_feature(
         db.add(flag)
     flag.enabled = enabled
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="feature_flag", entity_id=flag.id,
-        action="feature_flag.updated", payload={"key": key, "enabled": enabled},
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="feature_flag",
+        entity_id=flag.id,
+        action="feature_flag.updated",
+        payload={"key": key, "enabled": enabled},
     )
     db.commit()
     return {"key": key, "enabled": enabled}

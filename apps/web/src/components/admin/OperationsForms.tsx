@@ -10,7 +10,7 @@ function useMutation() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  async function run(path: string, method: "POST" | "PATCH" | "DELETE", body?: unknown) {
+  async function run(path: string, method: "POST" | "PUT" | "PATCH" | "DELETE", body?: unknown) {
     setBusy(true);
     setMessage("");
     setError("");
@@ -242,5 +242,108 @@ export function SeoRunButton({ tenantId }: { tenantId: string }) {
       </button>
       {mutation.error ? <span className="cell-sub">{mutation.error}</span> : null}
     </span>
+  );
+}
+
+type BillingConfiguration = {
+  monthlyAmountMinor: number;
+  billingCurrency: "USD" | "INR";
+  billingDay: number;
+  billingStatus: "current" | "warned" | "restricted";
+};
+
+export function BillingSettingsForm({
+  tenantId,
+  configuration,
+}: {
+  tenantId: string;
+  configuration: BillingConfiguration;
+}) {
+  const mutation = useMutation();
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    await mutation.run(`/billing/${tenantId}/configuration`, "PUT", {
+      monthly_amount_minor: Number(form.get("monthlyAmountMinor")),
+      billing_currency: form.get("billingCurrency"),
+      billing_day: Number(form.get("billingDay")),
+    });
+  }
+  return (
+    <form className="stack" onSubmit={submit}>
+      <Feedback message={mutation.message} error={mutation.error} />
+      <div className="field-grid">
+        <div className="field">
+          <label htmlFor="monthlyAmountMinor">Monthly amount · minor units</label>
+          <input className="input" id="monthlyAmountMinor" name="monthlyAmountMinor" type="number" min="0" defaultValue={configuration.monthlyAmountMinor} required />
+        </div>
+        <div className="field">
+          <label htmlFor="billingCurrency">Billing currency</label>
+          <select className="select" id="billingCurrency" name="billingCurrency" defaultValue={configuration.billingCurrency}>
+            <option value="USD">USD · foreign client</option>
+            <option value="INR">INR · Indian client</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="billingDay">Monthly due day</label>
+          <input className="input" id="billingDay" name="billingDay" type="number" min="1" max="31" defaultValue={configuration.billingDay} required />
+        </div>
+        <div className="field">
+          <label>Current billing state</label>
+          <div className="input mono" aria-readonly="true">{configuration.billingStatus}</div>
+        </div>
+      </div>
+      <div className="actions">
+        <button className="button" disabled={mutation.busy}>{mutation.busy ? "Saving…" : "Save recurring billing"}</button>
+        {configuration.billingStatus !== "current" ? (
+          <button
+            className="button secondary"
+            disabled={mutation.busy}
+            type="button"
+            onClick={() => mutation.run(`/billing/${tenantId}/clear-lockout`, "POST")}
+          >
+            Clear lockout manually
+          </button>
+        ) : null}
+      </div>
+    </form>
+  );
+}
+
+export function ClientExportButton({ tenantId }: { tenantId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function download() {
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/backend/exports/${tenantId}`, { method: "POST" });
+      if (!response.ok) throw new Error(`Export failed (${response.status})`);
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") ?? "";
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const filename = match?.[1] ?? "client-standalone-site.zip";
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Export failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="stack">
+      <button className="button secondary" disabled={busy} onClick={download} type="button">
+        {busy ? "Building export…" : "Download standalone client site"}
+      </button>
+      {error ? <div className="error">{error}</div> : null}
+      <p className="cell-sub">Static export only. Chatbot, Zylora lead capture, platform credentials, RAG code, and other tenant data are excluded.</p>
+    </div>
   );
 }

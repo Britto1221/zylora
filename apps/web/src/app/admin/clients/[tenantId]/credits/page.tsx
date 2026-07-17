@@ -1,4 +1,5 @@
 import { CreditTopUpForm } from "@/components/admin/OperationsForms";
+import { RazorpayCheckout } from "@/components/admin/RazorpayCheckout";
 import { Badge, DateText, Empty, Metric, Panel } from "@/components/shared/UI";
 import { serverApi } from "@/lib/api/server";
 
@@ -24,6 +25,9 @@ export default async function CreditsPage({ params }: { params: Promise<{ tenant
         <Metric label="Available" value={`$${Number(data.account.availableUsd).toFixed(2)}`} foot="Safe to spend" />
         <Metric label="Low-balance threshold" value={`$${(data.account.low_balance_threshold_micro_usd / 1_000_000).toFixed(2)}`} foot="Dashboard and email warning" />
       </section>
+      <Panel title="Secure prepaid checkout" description="Pack prices are calculated by the server and credits are issued only after a verified captured-payment webhook">
+        <RazorpayCheckout tenantId={tenantId} />
+      </Panel>
       <div className="grid sidebar-content">
         <Panel title="Manual verified top-up" description="Use until automated checkout volume justifies full payment automation">
           <CreditTopUpForm tenantId={tenantId} />

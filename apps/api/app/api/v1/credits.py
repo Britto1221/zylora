@@ -15,7 +15,10 @@ from app.db.session import get_db
 from app.modules.audit.service import record_audit
 from app.modules.credits.schemas import ManualTopUp
 from app.modules.credits.service import (
-    append_transaction, get_or_create_account, micro_usd_to_usd, usd_to_micro_usd
+    append_transaction,
+    get_or_create_account,
+    micro_usd_to_usd,
+    usd_to_micro_usd,
 )
 
 router = APIRouter(prefix="/credits", tags=["credits"])
@@ -41,7 +44,9 @@ def get_balance(
             **model_dict(account),
             "balanceUsd": f"{micro_usd_to_usd(account.balance_micro_usd):.6f}",
             "reservedUsd": f"{micro_usd_to_usd(account.reserved_micro_usd):.6f}",
-            "availableUsd": f"{micro_usd_to_usd(account.balance_micro_usd - account.reserved_micro_usd):.6f}",
+            "availableUsd": (
+                f"{micro_usd_to_usd(account.balance_micro_usd - account.reserved_micro_usd):.6f}"
+            ),
         },
         "transactions": [model_dict(item) for item in transactions],
     }
@@ -68,8 +73,11 @@ def manual_top_up(
         idempotency_key=f"topup:{tenant_id}:{reference}",
     )
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="credit_transaction", entity_id=transaction.id,
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="credit_transaction",
+        entity_id=transaction.id,
         action="credits.manual_top_up",
         payload={"amount_usd": str(amount), "reference": reference},
     )
@@ -95,9 +103,13 @@ def adjust(
         idempotency_key=f"adjust:{tenant_id}:{uuid4()}",
     )
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="credit_transaction", entity_id=transaction.id,
-        action="credits.adjusted", payload={"amount_usd": str(amount), "reason": reason},
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="credit_transaction",
+        entity_id=transaction.id,
+        action="credits.adjusted",
+        payload={"amount_usd": str(amount), "reason": reason},
     )
     db.commit()
     return model_dict(transaction)

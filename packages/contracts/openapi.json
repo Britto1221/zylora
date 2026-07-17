@@ -503,6 +503,270 @@
         }
       }
     },
+    "/api/v1/admin/clients/bulk/payment-reminders": {
+      "post": {
+        "tags": [
+          "super-admin clients"
+        ],
+        "summary": "Bulk Payment Reminders",
+        "operationId": "bulk_payment_reminders_api_v1_admin_clients_bulk_payment_reminders_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantIdsPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Bulk Payment Reminders Api V1 Admin Clients Bulk Payment Reminders Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/clients/bulk/clear-lockouts": {
+      "post": {
+        "tags": [
+          "super-admin clients"
+        ],
+        "summary": "Bulk Clear Lockouts",
+        "operationId": "bulk_clear_lockouts_api_v1_admin_clients_bulk_clear_lockouts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantIdsPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Bulk Clear Lockouts Api V1 Admin Clients Bulk Clear Lockouts Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/clients/{tenant_id}/pause": {
+      "post": {
+        "tags": [
+          "super-admin clients"
+        ],
+        "summary": "Update Pause State",
+        "operationId": "update_pause_state_api_v1_admin_clients__tenant_id__pause_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PausePayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Update Pause State Api V1 Admin Clients  Tenant Id  Pause Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/clients/{tenant_id}/notes": {
+      "get": {
+        "tags": [
+          "super-admin clients"
+        ],
+        "summary": "List Notes",
+        "operationId": "list_notes_api_v1_admin_clients__tenant_id__notes_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Notes Api V1 Admin Clients  Tenant Id  Notes Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "super-admin clients"
+        ],
+        "summary": "Add Note",
+        "operationId": "add_note_api_v1_admin_clients__tenant_id__notes_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotePayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Add Note Api V1 Admin Clients  Tenant Id  Notes Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/dashboard/summary": {
       "get": {
         "tags": [
@@ -519,6 +783,34 @@
                   "additionalProperties": true,
                   "type": "object",
                   "title": "Response Summary Api V1 Dashboard Summary Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/dashboard/revenue": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Revenue Dashboard",
+        "operationId": "revenue_dashboard_api_v1_dashboard_revenue_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Revenue Dashboard Api V1 Dashboard Revenue Get"
                 }
               }
             }
@@ -552,6 +844,86 @@
               "type": "string",
               "default": "",
               "title": "Search"
+            }
+          },
+          {
+            "name": "billing_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/BillingStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Billing Status"
+            }
+          },
+          {
+            "name": "site_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "live",
+                    "draft"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Status"
+            }
+          },
+          {
+            "name": "last_login_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last Login From"
+            }
+          },
+          {
+            "name": "last_login_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last Login To"
+            }
+          },
+          {
+            "name": "last_login_missing",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Last Login Missing"
             }
           },
           {
@@ -2469,6 +2841,29 @@
         }
       }
     },
+    "/api/v1/payments/packs": {
+      "get": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "Packs",
+        "operationId": "packs_api_v1_payments_packs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Packs Api V1 Payments Packs Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/payments/{tenant_id}": {
       "get": {
         "tags": [
@@ -2554,7 +2949,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -2562,6 +2957,66 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response New Order Api V1 Payments  Tenant Id  Orders Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payments/{tenant_id}/verify-checkout": {
+      "post": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "Verify Checkout",
+        "operationId": "verify_checkout_api_v1_payments__tenant_id__verify_checkout_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutVerify"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Verify Checkout Api V1 Payments  Tenant Id  Verify Checkout Post"
                 }
               }
             }
@@ -2894,6 +3349,464 @@
               "type": "string",
               "format": "uuid",
               "title": "Invoice Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/billing/{tenant_id}/configuration": {
+      "get": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Get Billing Configuration",
+        "operationId": "get_billing_configuration_api_v1_billing__tenant_id__configuration_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Billing Configuration Api V1 Billing  Tenant Id  Configuration Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Update Billing Configuration",
+        "operationId": "update_billing_configuration_api_v1_billing__tenant_id__configuration_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BillingConfigurationUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Update Billing Configuration Api V1 Billing  Tenant Id  Configuration Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/billing/{tenant_id}/status": {
+      "get": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Get Billing Status",
+        "operationId": "get_billing_status_api_v1_billing__tenant_id__status_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Billing Status Api V1 Billing  Tenant Id  Status Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/billing/{tenant_id}/clear-lockout": {
+      "post": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Manual Clear Lockout",
+        "operationId": "manual_clear_lockout_api_v1_billing__tenant_id__clear_lockout_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Manual Clear Lockout Api V1 Billing  Tenant Id  Clear Lockout Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/billing/{tenant_id}/send-reminder": {
+      "post": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Send Payment Reminder",
+        "operationId": "send_payment_reminder_api_v1_billing__tenant_id__send_reminder_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Send Payment Reminder Api V1 Billing  Tenant Id  Send Reminder Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/billing/{tenant_id}/pay-order": {
+      "post": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Create Pay Now Order",
+        "operationId": "create_pay_now_order_api_v1_billing__tenant_id__pay_order_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Create Pay Now Order Api V1 Billing  Tenant Id  Pay Order Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/billing/{tenant_id}/verify-checkout": {
+      "post": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Verify Pay Now Checkout",
+        "operationId": "verify_pay_now_checkout_api_v1_billing__tenant_id__verify_checkout_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BillingCheckoutVerify"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Verify Pay Now Checkout Api V1 Billing  Tenant Id  Verify Checkout Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exports/bulk": {
+      "post": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Export Multiple Client Sites",
+        "operationId": "export_multiple_client_sites_api_v1_exports_bulk_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkExportPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/exports/{tenant_id}": {
+      "post": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Export Client Site",
+        "operationId": "export_client_site_api_v1_exports__tenant_id__post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
             }
           }
         ],
@@ -3997,6 +4910,66 @@
         }
       }
     },
+    "/api/v1/assets/{tenant_id}/{asset_id}/refresh-scan": {
+      "post": {
+        "tags": [
+          "assets"
+        ],
+        "summary": "Refresh Scan",
+        "operationId": "refresh_scan_api_v1_assets__tenant_id___asset_id__refresh_scan_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Asset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Refresh Scan Api V1 Assets  Tenant Id   Asset Id  Refresh Scan Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/assets/{tenant_id}/{asset_id}/download": {
       "get": {
         "tags": [
@@ -4649,6 +5622,96 @@
         }
       }
     },
+    "/api/v1/internal/billing/generate-monthly": {
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Internal Generate Monthly Invoices",
+        "operationId": "internal_generate_monthly_invoices_api_v1_internal_billing_generate_monthly_post",
+        "parameters": [
+          {
+            "name": "x-worker-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Worker-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Internal Generate Monthly Invoices Api V1 Internal Billing Generate Monthly Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/internal/billing/evaluate-dunning": {
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Internal Evaluate Dunning",
+        "operationId": "internal_evaluate_dunning_api_v1_internal_billing_evaluate_dunning_post",
+        "parameters": [
+          {
+            "name": "x-worker-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Worker-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Internal Evaluate Dunning Api V1 Internal Billing Evaluate Dunning Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/webhooks/razorpay": {
       "post": {
         "tags": [
@@ -4882,6 +5945,72 @@
         ],
         "title": "AnalyticsEventCreate"
       },
+      "BillingCheckoutVerify": {
+        "properties": {
+          "razorpay_order_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 5,
+            "title": "Razorpay Order Id"
+          },
+          "razorpay_payment_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 5,
+            "title": "Razorpay Payment Id"
+          },
+          "razorpay_signature": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 8,
+            "title": "Razorpay Signature"
+          }
+        },
+        "type": "object",
+        "required": [
+          "razorpay_order_id",
+          "razorpay_payment_id",
+          "razorpay_signature"
+        ],
+        "title": "BillingCheckoutVerify"
+      },
+      "BillingConfigurationUpdate": {
+        "properties": {
+          "monthly_amount_minor": {
+            "type": "integer",
+            "maximum": 1000000000.0,
+            "minimum": 0.0,
+            "title": "Monthly Amount Minor"
+          },
+          "billing_currency": {
+            "type": "string",
+            "pattern": "^(USD|INR)$",
+            "title": "Billing Currency"
+          },
+          "billing_day": {
+            "type": "integer",
+            "maximum": 31.0,
+            "minimum": 1.0,
+            "title": "Billing Day"
+          }
+        },
+        "type": "object",
+        "required": [
+          "monthly_amount_minor",
+          "billing_currency",
+          "billing_day"
+        ],
+        "title": "BillingConfigurationUpdate"
+      },
+      "BillingStatus": {
+        "type": "string",
+        "enum": [
+          "current",
+          "warned",
+          "restricted"
+        ],
+        "title": "BillingStatus"
+      },
       "Body_local_upload_api_v1_assets__tenant_id___asset_id__local_upload_post": {
         "properties": {
           "file": {
@@ -4895,6 +6024,25 @@
           "file"
         ],
         "title": "Body_local_upload_api_v1_assets__tenant_id___asset_id__local_upload_post"
+      },
+      "BulkExportPayload": {
+        "properties": {
+          "tenant_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Tenant Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_ids"
+        ],
+        "title": "BulkExportPayload"
       },
       "ChangeCreate": {
         "properties": {
@@ -5054,6 +6202,35 @@
         ],
         "title": "ChatRequest"
       },
+      "CheckoutVerify": {
+        "properties": {
+          "razorpay_order_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 5,
+            "title": "Razorpay Order Id"
+          },
+          "razorpay_payment_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 5,
+            "title": "Razorpay Payment Id"
+          },
+          "razorpay_signature": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 32,
+            "title": "Razorpay Signature"
+          }
+        },
+        "type": "object",
+        "required": [
+          "razorpay_order_id",
+          "razorpay_payment_id",
+          "razorpay_signature"
+        ],
+        "title": "CheckoutVerify"
+      },
       "CompleteRequest": {
         "properties": {
           "checksum_sha256": {
@@ -5068,18 +6245,6 @@
               }
             ],
             "title": "Checksum Sha256"
-          },
-          "public_url": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 1000
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Public Url"
           }
         },
         "type": "object",
@@ -5423,6 +6588,21 @@
         ],
         "title": "MembershipRole"
       },
+      "NotePayload": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "NotePayload"
+      },
       "NotificationSettingsUpdate": {
         "properties": {
           "business_enabled": {
@@ -5501,30 +6681,37 @@
       },
       "OrderCreate": {
         "properties": {
-          "charged_amount_minor": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Charged Amount Minor"
-          },
-          "charged_currency": {
+          "pack_id": {
             "type": "string",
-            "maxLength": 3,
-            "minLength": 3,
-            "title": "Charged Currency",
-            "default": "INR"
-          },
-          "usd_credit_micro_amount": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Usd Credit Micro Amount"
+            "pattern": "^(mini|standard|business|growth)$",
+            "title": "Pack Id"
           }
         },
         "type": "object",
         "required": [
-          "charged_amount_minor",
-          "usd_credit_micro_amount"
+          "pack_id"
         ],
         "title": "OrderCreate"
+      },
+      "PausePayload": {
+        "properties": {
+          "paused": {
+            "type": "boolean",
+            "title": "Paused"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 3,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "paused",
+          "reason"
+        ],
+        "title": "PausePayload"
       },
       "PresignRequest": {
         "properties": {
@@ -5776,6 +6963,25 @@
           "name"
         ],
         "title": "TenantCreate"
+      },
+      "TenantIdsPayload": {
+        "properties": {
+          "tenant_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Tenant Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_ids"
+        ],
+        "title": "TenantIdsPayload"
       },
       "TenantUpdate": {
         "properties": {

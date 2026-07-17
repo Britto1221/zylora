@@ -29,7 +29,9 @@ def test_operational_modules_are_connected(
     draft_id = created["draft"]["id"]
 
     assert client.get("/api/v1/dashboard/summary", headers=admin_headers).status_code == 200
-    assert client.get(f"/api/v1/portal/{tenant_id}/summary", headers=admin_headers).status_code == 200
+    assert (
+        client.get(f"/api/v1/portal/{tenant_id}/summary", headers=admin_headers).status_code == 200
+    )
 
     site = client.get(f"/api/v1/sites/tenant/{tenant_id}", headers=admin_headers)
     assert site.status_code == 200
@@ -95,8 +97,11 @@ def test_operational_modules_are_connected(
         json={
             "name": "Clinic FAQ",
             "category": "faq",
-            "text": "Appointments are available Monday to Saturday. Call the clinic for current availability. "
-                    "The clinic provides preventive consultations and follow-up care.",
+            "text": (
+                "Appointments are available Monday to Saturday. Call the clinic for "
+                "current availability. The clinic provides preventive consultations "
+                "and follow-up care."
+            ),
         },
     )
     assert document.status_code == 201
@@ -113,6 +118,10 @@ def test_operational_modules_are_connected(
         headers=admin_headers,
     )
     assert enable_chat.status_code == 200
+
+    for action in ["submit", "approve", "publish"]:
+        publication = client.post(f"/api/v1/publishing/{draft_id}/{action}", headers=admin_headers)
+        assert publication.status_code == 200, publication.text
     chat = client.post(
         "/api/v1/chatbot/public",
         json={
@@ -172,14 +181,20 @@ def test_operational_modules_are_connected(
     )
     assert invoice.status_code == 201
     invoice_id = invoice.json()["id"]
-    assert client.post(
-        f"/api/v1/invoices/{tenant_id}/{invoice_id}/issue",
-        headers=admin_headers,
-    ).status_code == 200
-    assert client.post(
-        f"/api/v1/invoices/{tenant_id}/{invoice_id}/mark-paid",
-        headers=admin_headers,
-    ).status_code == 200
+    assert (
+        client.post(
+            f"/api/v1/invoices/{tenant_id}/{invoice_id}/issue",
+            headers=admin_headers,
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/api/v1/invoices/{tenant_id}/{invoice_id}/mark-paid",
+            headers=admin_headers,
+        ).status_code
+        == 200
+    )
     pdf = client.get(
         f"/api/v1/invoices/{tenant_id}/{invoice_id}/pdf",
         headers=admin_headers,
@@ -190,10 +205,13 @@ def test_operational_modules_are_connected(
     seo = client.post(f"/api/v1/seo/{tenant_id}/run", headers=admin_headers)
     assert seo.status_code == 200
     audit_id = seo.json()["id"]
-    assert client.get(
-        f"/api/v1/seo/{tenant_id}/{audit_id}/pdf",
-        headers=admin_headers,
-    ).status_code == 200
+    assert (
+        client.get(
+            f"/api/v1/seo/{tenant_id}/{audit_id}/pdf",
+            headers=admin_headers,
+        ).status_code
+        == 200
+    )
 
     invite = client.post(
         f"/api/v1/access/{tenant_id}/invitations",
@@ -212,10 +230,13 @@ def test_operational_modules_are_connected(
     )
     assert credential.status_code == 200
     credential_id = credential.json()["id"]
-    assert client.delete(
-        f"/api/v1/access/{tenant_id}/credentials/{credential_id}",
-        headers=admin_headers,
-    ).status_code == 204
+    assert (
+        client.delete(
+            f"/api/v1/access/{tenant_id}/credentials/{credential_id}",
+            headers=admin_headers,
+        ).status_code
+        == 204
+    )
 
     presign = client.post(
         f"/api/v1/assets/{tenant_id}/presign",
@@ -236,22 +257,22 @@ def test_operational_modules_are_connected(
         files={"file": ("clinic.txt", b"Clinic content", "text/plain")},
     )
     assert upload.status_code == 200
-    assert client.get(
-        f"/api/v1/assets/{tenant_id}/{asset_id}/download",
-        headers=admin_headers,
-    ).status_code == 200
+    assert (
+        client.get(
+            f"/api/v1/assets/{tenant_id}/{asset_id}/download",
+            headers=admin_headers,
+        ).status_code
+        == 200
+    )
 
     order = client.post(
         f"/api/v1/payments/{tenant_id}/orders",
         headers=admin_headers,
-        json={
-            "charged_amount_minor": 2100,
-            "charged_currency": "INR",
-            "usd_credit_micro_amount": 25_000_000,
-        },
+        json={"pack_id": "standard"},
     )
-    assert order.status_code == 200
-    assert order.json()["simulated"] is True
+    assert order.status_code == 201, order.text
+    assert order.json()["order"]["id"]
+    assert order.json()["payment"]["pack_id"] == "standard"
 
     logs = client.get(f"/api/v1/audit/{tenant_id}", headers=admin_headers)
     assert logs.status_code == 200

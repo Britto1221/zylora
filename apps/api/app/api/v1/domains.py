@@ -80,9 +80,13 @@ def add_domain(
     db.add(domain)
     db.flush()
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="domain", entity_id=domain.id,
-        action="domain.added", payload={"hostname": domain.hostname},
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="domain",
+        entity_id=domain.id,
+        action="domain.added",
+        payload={"hostname": domain.hostname},
     )
     db.commit()
     return {
@@ -103,17 +107,19 @@ def verify_domain(
     db: Session = Depends(get_db),
     user: AuthenticatedUser = Depends(require_super_admin),
 ) -> dict:
-    domain = db.scalar(
-        select(Domain).where(Domain.id == domain_id, Domain.tenant_id == tenant_id)
-    )
+    domain = db.scalar(select(Domain).where(Domain.id == domain_id, Domain.tenant_id == tenant_id))
     if not domain:
         raise HTTPException(status_code=404, detail="Domain not found.")
     # A manual confirmation is the safe fallback until a DNS provider is configured.
     domain.status = DomainStatus.ACTIVE if confirmed else DomainStatus.VERIFYING
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="domain", entity_id=domain.id,
-        action="domain.verification_updated", payload={"confirmed": confirmed},
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="domain",
+        entity_id=domain.id,
+        action="domain.verification_updated",
+        payload={"confirmed": confirmed},
     )
     db.commit()
     return model_dict(domain)
@@ -126,14 +132,16 @@ def remove_domain(
     db: Session = Depends(get_db),
     user: AuthenticatedUser = Depends(require_super_admin),
 ):
-    domain = db.scalar(
-        select(Domain).where(Domain.id == domain_id, Domain.tenant_id == tenant_id)
-    )
+    domain = db.scalar(select(Domain).where(Domain.id == domain_id, Domain.tenant_id == tenant_id))
     if not domain:
         raise HTTPException(status_code=404, detail="Domain not found.")
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="domain", entity_id=domain.id, action="domain.removed",
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="domain",
+        entity_id=domain.id,
+        action="domain.removed",
         payload={"hostname": domain.hostname},
     )
     db.delete(domain)

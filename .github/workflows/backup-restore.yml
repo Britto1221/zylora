@@ -1,0 +1,25 @@
+name: Backup Restore Verification
+on:
+  pull_request:
+    paths: ["scripts/backup_postgres.sh", "scripts/restore_postgres.sh", "scripts/verify_backup_restore.sh", ".github/workflows/backup-restore.yml"]
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      RESTORE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/zylora_restore
+      BACKUP_ENCRYPTION_PASSPHRASE: workflow-test-only
+    steps:
+      - uses: actions/checkout@v4
+      - run: psql "$DATABASE_URL" -c 'CREATE DATABASE zylora_restore;'
+      - run: psql "$DATABASE_URL" -c 'create table backup_probe(id int primary key); insert into backup_probe values (1);'
+      - run: bash scripts/verify_backup_restore.sh
+      - run: test "$(psql "$RESTORE_DATABASE_URL" -Atc 'select count(*) from backup_probe')" = 1

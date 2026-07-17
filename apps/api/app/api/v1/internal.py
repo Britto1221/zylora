@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-from uuid import UUID, NAMESPACE_DNS, uuid5
+from datetime import datetime
+from uuid import NAMESPACE_DNS, UUID, uuid5
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from zylora_ai.seo import audit_snapshot
 
 from app.core.security import require_worker_token
 from app.core.serialization import model_dict
 from app.db.models.entities import (
-    CreditAccount,
     CreditReservation,
     Domain,
     NotificationJob,
@@ -26,6 +26,7 @@ from app.db.models.enums import (
 )
 from app.db.session import get_db
 from app.modules.audit.service import record_audit
+from app.modules.billing.service import evaluate_all_dunning, generate_monthly_invoices
 from app.modules.credits.service import (
     InsufficientCreditsError,
     capture_reservation,
@@ -34,7 +35,6 @@ from app.modules.credits.service import (
 )
 from app.modules.email.service import send_email
 from app.modules.whatsapp.service import send_template
-from zylora_ai.seo import audit_snapshot
 
 router = APIRouter(
     prefix="/internal",
@@ -73,6 +73,28 @@ def process_job(job_id: UUID, db: Session = Depends(get_db)) -> dict:
     job.attempts += 1
     reservation = None
     try:
+        if job.recipient_type == "BILLING_EMAIL":
+            variables = job.template_variables or {}
+            result = send_email(
+                to=job.recipient,
+                subject=f"Payment overdue: {variables.get('invoice_number', 'Zylora invoice')}",
+                text=(
+                    f"Hello {variables.get('client_name', 'client')},\n\n"
+                    f"Invoice {variables.get('invoice_number', '')} for "
+                    f"{variables.get('currency', '')} {variables.get('amount', '')} is "
+                    f"{variables.get('days_overdue', '')} days overdue. "
+                    "Please open the Zylora client portal to pay now.\n\n"
+                    "Your public website and lead capture remain online."
+                ),
+                idempotency_key=job.idempotency_key,
+            )
+            job.provider_message_id = str(result.get("id", ""))
+            job.provider_status = "delivered"
+            job.submitted_at = datetime.utcnow()
+            job.delivered_at = datetime.utcnow()
+            job.status = NotificationStatus.DELIVERED
+            db.commit()
+            return model_dict(job)
         reservation = reserve_credits(
             db,
             tenant_id=job.tenant_id,
@@ -90,6 +112,8 @@ def process_job(job_id: UUID, db: Session = Depends(get_db)) -> dict:
             idempotency_key=job.idempotency_key,
         )
         job.provider_message_id = result["id"]
+        job.provider_status = str(result.get("status", "accepted"))
+        job.submitted_at = datetime.utcnow()
         job.status = NotificationStatus.SUBMITTED
         capture_reservation(
             db,
@@ -124,8 +148,18 @@ def run_domain_reminders(db: Session = Depends(get_db)) -> dict:
         )
     ).all()
     for domain in domains:
+        if domain.expires_at is None:
+            continue
         days = (domain.expires_at.date() - now.date()).days
-        threshold = next((value for value in [60, 30, 15, 7] if days <= value and (domain.last_reminder_days is None or domain.last_reminder_days > value)), None)
+        threshold = next(
+            (
+                value
+                for value in [60, 30, 15, 7]
+                if days <= value
+                and (domain.last_reminder_days is None or domain.last_reminder_days > value)
+            ),
+            None,
+        )
         if threshold is None:
             continue
         tenant = db.get(Tenant, domain.tenant_id)
@@ -200,3 +234,20 @@ def internal_seo_audit(tenant_id: UUID, db: Session = Depends(get_db)) -> dict:
     audit.recommendations_json = result["recommendations"]
     db.commit()
     return model_dict(audit)
+
+
+@router.post("/billing/generate-monthly")
+def internal_generate_monthly_invoices(db: Session = Depends(get_db)) -> dict:
+    invoices = generate_monthly_invoices(db, actor_user_id=worker_id)
+    db.commit()
+    return {
+        "count": len(invoices),
+        "invoiceIds": [str(invoice.id) for invoice in invoices],
+    }
+
+
+@router.post("/billing/evaluate-dunning")
+def internal_evaluate_dunning(db: Session = Depends(get_db)) -> dict:
+    results = evaluate_all_dunning(db, actor_user_id=worker_id)
+    db.commit()
+    return {"count": len(results), "items": results}

@@ -1,18 +1,32 @@
 from __future__ import annotations
 
-from uuid import uuid5, NAMESPACE_DNS
+from uuid import NAMESPACE_DNS, uuid5
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.models.entities import (
-    AnalyticsEvent, CreditAccount, CreditTransaction, Domain, FeatureFlag, Lead,
-    NotificationSetting, SeoAudit, Site, SiteVersion, Tenant, TenantMembership,
+    AnalyticsEvent,
+    CreditAccount,
+    CreditTransaction,
+    Domain,
+    FeatureFlag,
+    Lead,
+    NotificationSetting,
+    SeoAudit,
+    Site,
+    SiteVersion,
+    Tenant,
+    TenantMembership,
 )
 from app.db.models.enums import (
-    CreditTransactionType, DomainStatus, LeadStatus, MembershipRole,
-    SeoAuditStatus, SiteVersionStatus,
+    CreditTransactionType,
+    DomainStatus,
+    LeadStatus,
+    MembershipRole,
+    SeoAuditStatus,
+    SiteVersionStatus,
 )
 from app.modules.sites.defaults import default_content, default_seo, default_theme
 

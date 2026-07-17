@@ -10,7 +10,7 @@ from reportlab.pdfgen.canvas import Canvas
 def simple_pdf(title: str, lines: list[str]) -> bytes:
     buffer = BytesIO()
     canvas = Canvas(buffer, pagesize=A4)
-    width, height = A4
+    _width, height = A4
     y = height - 58
     canvas.setTitle(title)
     canvas.setFont("Helvetica-Bold", 18)

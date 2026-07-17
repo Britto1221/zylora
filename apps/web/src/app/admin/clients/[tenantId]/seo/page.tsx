@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { SeoRunButton } from "@/components/admin/OperationsForms";
-import { Badge, DateText, Empty, Metric, Panel } from "@/components/shared/UI";
+import { Badge, DateText, Empty, Panel } from "@/components/shared/UI";
 import { serverApi } from "@/lib/api/server";
 
 type Result = { items: Array<{

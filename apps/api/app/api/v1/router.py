@@ -2,16 +2,19 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     access,
+    admin_clients,
     analytics,
     assets,
     audit,
     auth,
-    chatbot,
+    billing,
     changes,
+    chatbot,
     credits,
     dashboard,
     documents,
     domains,
+    exports,
     health,
     internal,
     invoices,
@@ -32,6 +35,7 @@ api_router.include_router(health.router)
 api_router.include_router(metrics.router)
 api_router.include_router(auth.router)
 api_router.include_router(access.router)
+api_router.include_router(admin_clients.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(tenants.router)
 api_router.include_router(sites.router)
@@ -42,6 +46,8 @@ api_router.include_router(notifications.router)
 api_router.include_router(domains.router)
 api_router.include_router(payments.router)
 api_router.include_router(invoices.router)
+api_router.include_router(billing.router)
+api_router.include_router(exports.router)
 api_router.include_router(documents.router)
 api_router.include_router(chatbot.router)
 api_router.include_router(seo.router)

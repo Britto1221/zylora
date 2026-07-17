@@ -4,19 +4,19 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
+from zylora_ai.intake.profile_builder import build_business_profile
+from zylora_ai.rag.chunker import chunk_text
+from zylora_ai.rag.embedder import deterministic_embedding
 
-from app.core.security import AuthenticatedUser, require_tenant_access
+from app.core.security import AuthenticatedUser, require_tenant_access, require_tenant_admin
 from app.core.serialization import model_dict
 from app.db.models.entities import Asset, Document, DocumentChunk
 from app.db.models.enums import DocumentStatus
 from app.db.session import get_db
 from app.modules.audit.service import record_audit
 from app.modules.documents.service import extract_text
-from zylora_ai.intake.profile_builder import build_business_profile
-from zylora_ai.rag.chunker import chunk_text
-from zylora_ai.rag.embedder import deterministic_embedding
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -44,7 +44,7 @@ def create_text_document(
     tenant_id: UUID,
     payload: TextDocumentCreate,
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_tenant_access),
+    user: AuthenticatedUser = Depends(require_tenant_admin),
 ) -> dict:
     document = Document(
         tenant_id=tenant_id,
@@ -78,9 +78,13 @@ def create_text_document(
         document.error_message = str(exc)
 
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="document", entity_id=document.id,
-        action="document.created", payload={"name": document.name, "status": document.status.value},
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="document",
+        entity_id=document.id,
+        action="document.created",
+        payload={"name": document.name, "status": document.status.value},
     )
     db.commit()
     return model_dict(document)
@@ -99,7 +103,9 @@ def get_document(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found.")
     chunks = db.scalars(
-        select(DocumentChunk).where(DocumentChunk.document_id == document.id).order_by(DocumentChunk.position)
+        select(DocumentChunk)
+        .where(DocumentChunk.document_id == document.id)
+        .order_by(DocumentChunk.position)
     ).all()
     return {"document": model_dict(document), "chunks": [model_dict(chunk) for chunk in chunks]}
 
@@ -109,7 +115,7 @@ def delete_document(
     tenant_id: UUID,
     document_id: UUID,
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_tenant_access),
+    user: AuthenticatedUser = Depends(require_tenant_admin),
 ):
     document = db.scalar(
         select(Document).where(Document.id == document_id, Document.tenant_id == tenant_id)
@@ -117,8 +123,12 @@ def delete_document(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found.")
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="document", entity_id=document.id, action="document.deleted",
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="document",
+        entity_id=document.id,
+        action="document.deleted",
         payload={"name": document.name},
     )
     db.delete(document)
@@ -131,7 +141,7 @@ def create_document_from_asset(
     asset_id: UUID,
     category: str = "general",
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_tenant_access),
+    user: AuthenticatedUser = Depends(require_tenant_admin),
 ) -> dict:
     asset = db.scalar(
         select(Asset).where(

@@ -12,17 +12,22 @@ from slowapi.util import get_remote_address
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.v1.router import api_router
+from app.core.alerts import send_operational_alert
 from app.core.config import get_settings
+from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware, SecurityHeadersMiddleware
 from app.db.base import Base
+from app.db.readiness import verify_database_readiness
 from app.db.seed import seed_development
 from app.db.session import SessionLocal, engine
 
 settings = get_settings()
+configure_logging()
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    verify_database_readiness()
     if not settings.is_production:
         Base.metadata.create_all(bind=engine)
         with SessionLocal() as db:
@@ -50,7 +55,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(
+    RateLimitExceeded,
+    _rate_limit_exceeded_handler,  # type: ignore[arg-type]
+)
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
@@ -68,6 +76,16 @@ app.add_middleware(
 
 @app.exception_handler(Exception)
 async def unhandled_error(request: Request, exc: Exception) -> JSONResponse:
+    if settings.sentry_dsn:
+        sentry_sdk.capture_exception(exc)
+    send_operational_alert(
+        title="Unhandled API exception",
+        message=str(exc),
+        metadata={
+            "path": str(request.url.path),
+            "request_id": getattr(request.state, "request_id", None),
+        },
+    )
     # Keep provider and database details away from clients.
     return JSONResponse(
         status_code=500,

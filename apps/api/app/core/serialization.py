@@ -18,7 +18,4 @@ def json_value(value):
 
 def model_dict(instance) -> dict:
     mapper = inspect(instance).mapper
-    return {
-        column.key: json_value(getattr(instance, column.key))
-        for column in mapper.column_attrs
-    }
+    return {column.key: json_value(getattr(instance, column.key)) for column in mapper.column_attrs}

@@ -1,13 +1,20 @@
-# Backup and restore
+# Backup and Restore
 
-Back up PostgreSQL with point-in-time recovery, enable object-storage versioning,
-and retain published snapshots. Encrypt backup media and restrict restore access.
+`backup_postgres.sh` creates a PostgreSQL custom-format dump, encrypts it with AES-256-CBC/PBKDF2, records a SHA-256 checksum, and enforces configurable retention. Store the encryption passphrase in a secret manager, never in Git.
 
-Quarterly restore test:
+Run:
 
-1. Provision an isolated database.
-2. Restore the selected backup.
-3. apply any pending migrations.
-4. verify tenants, leads, credits, transactions, versions, and domains.
-5. verify asset references and published sites.
-6. document recovery time and any data gap.
+```bash
+export DATABASE_URL='postgresql://...?...sslmode=verify-full'
+export BACKUP_ENCRYPTION_PASSPHRASE='from-secret-manager'
+bash scripts/backup_postgres.sh
+```
+
+Restore into a separate database first:
+
+```bash
+export RESTORE_DATABASE_URL='postgresql://.../zylora_restore?sslmode=verify-full'
+bash scripts/restore_postgres.sh backups/zylora-TIMESTAMP.dump.enc
+```
+
+The GitHub workflow verifies the backup/restore scripts against PostgreSQL. Production restores must also validate row counts, recent payments, credit balances, leads, published-site pointers, and object-storage references.

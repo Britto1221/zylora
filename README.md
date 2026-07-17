@@ -17,6 +17,12 @@ feature flags, audit logs, and background workers.
 - `infra` — database policies and deployment boundaries.
 - `docs` — architecture, security, provider, deployment, and operating guidance.
 
+## Super-admin portfolio operations
+
+Zylora includes filtered client health views, audited multi-client actions, a
+separate-currency revenue dashboard, deliberate client pause controls, and
+append-only internal client notes. See `docs/super-admin-portfolio.md`.
+
 ## Local development
 
 Requirements:
@@ -151,3 +157,50 @@ External accounts and credentials still require manual setup. See
 - Tenant membership is enforced by the API; production uses verified OIDC/JWT tokens.
 - Client API keys are encrypted and never returned after storage.
 - Webhook events are signature-verified and deduplicated.
+
+## Launch-hardening workflow
+
+```bash
+cp .env.production.example .env.production
+python scripts/configure_production.py
+python scripts/verify_production_env.py
+
+cd apps/api
+alembic upgrade head
+pytest
+cd ../..
+
+npm install
+npm run typecheck:web
+npm run lint:web
+npm run build:web
+```
+
+The API refuses to start in production when required authentication, administrator, TLS, payment, messaging, malware-scanning, monitoring or legal-contact configuration is missing. It also verifies that the database is at the Alembic head and that PostgreSQL RLS is enabled.
+
+Review `docs/launch-readiness.md` and `docs/manual-provider-actions.md` before accepting customers.
+
+## Recurring billing
+
+Recurring billing is configured per client from the super-admin Invoices tab.
+Each tenant can be billed in USD or INR, with an independent amount and due day.
+The monthly Celery task creates `RECURRING` invoices without changing the
+existing `ONE_TIME` invoice flow.
+
+Dunning is server-enforced: day 3 produces a portal warning, day 10 restricts
+portal API access to billing and pay-now operations, and verified payment or a
+super-admin override restores access. Public websites and lead capture are never
+restricted. See `docs/recurring-billing.md`.
+
+## Standalone client export
+
+Generate a static handoff package with:
+
+```bash
+python scripts/export_client.py --client_id=<TENANT_UUID> --output_dir=exports
+```
+
+The resulting ZIP contains only the selected client's static site, blank
+third-party configuration examples, and deployment instructions. It excludes
+Zylora platform code, secrets, chatbot/RAG functionality, backend lead capture,
+and every other tenant's data. See `docs/client-export.md`.

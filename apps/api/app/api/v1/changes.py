@@ -7,7 +7,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.security import AuthenticatedUser, require_tenant_access
+from app.core.security import (
+    AuthenticatedUser,
+    require_super_admin,
+    require_tenant_access,
+    require_tenant_admin,
+)
 from app.core.serialization import model_dict
 from app.db.models.entities import ChangeRequest
 from app.db.models.enums import ChangeRequestStatus
@@ -51,7 +56,7 @@ def create_change(
     tenant_id: UUID,
     payload: ChangeCreate,
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_tenant_access),
+    user: AuthenticatedUser = Depends(require_tenant_admin),
 ) -> dict:
     change = ChangeRequest(
         tenant_id=tenant_id,
@@ -64,8 +69,11 @@ def create_change(
     db.add(change)
     db.flush()
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="change_request", entity_id=change.id,
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="change_request",
+        entity_id=change.id,
         action="change_request.created",
     )
     db.commit()
@@ -78,7 +86,7 @@ def update_change(
     change_id: UUID,
     payload: ChangeUpdate,
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_tenant_access),
+    user: AuthenticatedUser = Depends(require_super_admin),
 ) -> dict:
     change = db.scalar(
         select(ChangeRequest).where(
@@ -96,8 +104,11 @@ def update_change(
     for key, value in values.items():
         setattr(change, key, value)
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="change_request", entity_id=change.id,
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="change_request",
+        entity_id=change.id,
         action="change_request.updated",
         payload=payload.model_dump(exclude_unset=True),
     )

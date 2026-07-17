@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.security import AuthenticatedUser, require_tenant_access
+from app.core.security import AuthenticatedUser, require_tenant_access, require_tenant_admin
 from app.core.serialization import model_dict
 from app.db.models.entities import NotificationJob
 from app.db.models.enums import NotificationStatus
@@ -36,9 +36,12 @@ def overview(
     _: AuthenticatedUser = Depends(require_tenant_access),
 ) -> dict:
     setting = get_or_create_settings(db, tenant_id)
-    total = db.scalar(
-        select(func.count(NotificationJob.id)).where(NotificationJob.tenant_id == tenant_id)
-    ) or 0
+    total = (
+        db.scalar(
+            select(func.count(NotificationJob.id)).where(NotificationJob.tenant_id == tenant_id)
+        )
+        or 0
+    )
     jobs = db.scalars(
         select(NotificationJob)
         .where(NotificationJob.tenant_id == tenant_id)
@@ -61,14 +64,17 @@ def update_settings(
     tenant_id: UUID,
     payload: NotificationSettingsUpdate,
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_tenant_access),
+    user: AuthenticatedUser = Depends(require_tenant_admin),
 ) -> dict:
     setting = get_or_create_settings(db, tenant_id)
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(setting, key, value)
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="notification_setting", entity_id=setting.id,
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="notification_setting",
+        entity_id=setting.id,
         action="notifications.settings_updated",
         payload=payload.model_dump(exclude_unset=True),
     )
@@ -81,7 +87,7 @@ def retry_job(
     tenant_id: UUID,
     job_id: UUID,
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_tenant_access),
+    user: AuthenticatedUser = Depends(require_tenant_admin),
 ) -> dict:
     job = db.scalar(
         select(NotificationJob).where(
@@ -98,8 +104,11 @@ def retry_job(
     job.status = NotificationStatus.PENDING
     job.failure_reason = None
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="notification_job", entity_id=job.id,
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="notification_job",
+        entity_id=job.id,
         action="notifications.retry_requested",
     )
     db.commit()

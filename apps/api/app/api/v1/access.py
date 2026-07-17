@@ -18,6 +18,7 @@ from app.core.security import (
     get_current_user,
     require_super_admin,
     require_tenant_access,
+    require_tenant_admin,
 )
 from app.core.serialization import model_dict
 from app.db.models.entities import (
@@ -84,7 +85,9 @@ def members(
                 "provider": item.provider,
                 "masked": f"••••••••{item.secret_last_four}",
                 "status": item.status,
-                "lastVerifiedAt": item.last_verified_at.isoformat() if item.last_verified_at else None,
+                "lastVerifiedAt": item.last_verified_at.isoformat()
+                if item.last_verified_at
+                else None,
             }
             for item in credentials
         ],
@@ -123,10 +126,7 @@ def create_invitation(
     )
     db.add(invitation)
     db.flush()
-    invite_url = (
-        f"{settings.web_origin}/invite?token={raw_token}"
-        f"&tenant={tenant.slug}"
-    )
+    invite_url = f"{settings.web_origin}/invite?token={raw_token}&tenant={tenant.slug}"
     delivery = send_email(
         to=email,
         subject=f"You have been invited to {tenant.name} on Zylora",
@@ -162,9 +162,7 @@ def accept_invitation(
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> dict:
     invitation = db.scalar(
-        select(ClientInvitation).where(
-            ClientInvitation.token_hash == token_hash(payload.token)
-        )
+        select(ClientInvitation).where(ClientInvitation.token_hash == token_hash(payload.token))
     )
     if not invitation:
         raise HTTPException(status_code=404, detail="Invitation not found.")
@@ -241,7 +239,7 @@ def save_credential(
     tenant_id: UUID,
     payload: CredentialCreate,
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_tenant_access),
+    user: AuthenticatedUser = Depends(require_tenant_admin),
 ) -> dict:
     cipher = SecretCipher()
     credential = db.scalar(
@@ -286,7 +284,7 @@ def test_credential(
     tenant_id: UUID,
     credential_id: UUID,
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_tenant_access),
+    user: AuthenticatedUser = Depends(require_tenant_admin),
 ) -> dict:
     credential = db.scalar(
         select(ApiCredential).where(
@@ -331,7 +329,7 @@ def delete_credential(
     tenant_id: UUID,
     credential_id: UUID,
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_tenant_access),
+    user: AuthenticatedUser = Depends(require_tenant_admin),
 ):
     credential = db.scalar(
         select(ApiCredential).where(

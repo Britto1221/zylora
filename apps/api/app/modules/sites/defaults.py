@@ -54,7 +54,10 @@ def default_content(business_name: str, template_key: str) -> dict:
                 "content": {
                     "eyebrow": business_name,
                     "heading": hero,
-                    "body": "Replace this introduction with a clear explanation of the business, its value, and who it serves.",
+                    "body": (
+                        "Replace this introduction with a clear explanation of the "
+                        "business, its value, and who it serves."
+                    ),
                     "primaryButton": cta,
                     "primaryHref": "#contact",
                     "secondaryButton": "Explore services",
@@ -73,9 +76,18 @@ def default_content(business_name: str, template_key: str) -> dict:
                     "heading": "Services designed around real needs",
                     "body": "Add the business's most important services here.",
                     "items": [
-                        {"title": "Service one", "body": "Describe the service and the outcome it provides."},
-                        {"title": "Service two", "body": "Describe the service and the outcome it provides."},
-                        {"title": "Service three", "body": "Describe the service and the outcome it provides."},
+                        {
+                            "title": "Service one",
+                            "body": "Describe the service and the outcome it provides.",
+                        },
+                        {
+                            "title": "Service two",
+                            "body": "Describe the service and the outcome it provides.",
+                        },
+                        {
+                            "title": "Service three",
+                            "body": "Describe the service and the outcome it provides.",
+                        },
                     ],
                 },
             },
@@ -87,7 +99,9 @@ def default_content(business_name: str, template_key: str) -> dict:
                 "content": {
                     "eyebrow": "About",
                     "heading": f"Why customers choose {business_name}",
-                    "body": "Explain the team's experience, approach, standards, and local credibility.",
+                    "body": (
+                        "Explain the team's experience, approach, standards, and local credibility."
+                    ),
                     "points": ["Clear communication", "Reliable service", "Focused on outcomes"],
                 },
             },
@@ -100,7 +114,11 @@ def default_content(business_name: str, template_key: str) -> dict:
                     "eyebrow": "Testimonials",
                     "heading": "What customers say",
                     "items": [
-                        {"quote": "Add a verified customer testimonial.", "name": "Customer name", "role": "Customer"}
+                        {
+                            "quote": "Add a verified customer testimonial.",
+                            "name": "Customer name",
+                            "role": "Customer",
+                        }
                     ],
                 },
             },
@@ -113,7 +131,10 @@ def default_content(business_name: str, template_key: str) -> dict:
                     "eyebrow": "FAQ",
                     "heading": "Common questions",
                     "items": [
-                        {"question": "How do I get started?", "answer": "Contact the business using the form below."}
+                        {
+                            "question": "How do I get started?",
+                            "answer": "Contact the business using the form below.",
+                        }
                     ],
                 },
             },

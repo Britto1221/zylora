@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from uuid import UUID, uuid5, NAMESPACE_DNS
+from datetime import UTC, datetime, timedelta
+from uuid import NAMESPACE_DNS, UUID, uuid5
 
 import jwt
 from fastapi import Depends, Header, HTTPException, Path, status
@@ -12,9 +12,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.db.models.entities import TenantMembership
-from app.db.models.enums import MembershipRole
-from app.db.session import get_db
+from app.db.models.entities import Tenant, TenantMembership
+from app.db.models.enums import BillingStatus, MembershipRole
+from app.db.session import get_db, set_tenant_context, set_user_context
 
 bearer_scheme = HTTPBearer(auto_error=True)
 settings = get_settings()
@@ -32,7 +32,7 @@ def create_development_token(email: str) -> str:
     if settings.is_production:
         raise RuntimeError("Development authentication is disabled in production.")
     normalized = email.strip().lower()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return jwt.encode(
         {
             "sub": str(uuid5(NAMESPACE_DNS, normalized)),
@@ -86,6 +86,7 @@ def decode_access_token(token: str) -> dict:
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
 ) -> AuthenticatedUser:
     claims = decode_access_token(credentials.credentials)
     try:
@@ -93,11 +94,13 @@ def get_current_user(
     except (KeyError, ValueError) as exc:
         raise HTTPException(status_code=401, detail="Invalid token subject.") from exc
     email = str(claims.get("email", "")).strip().lower()
-    return AuthenticatedUser(
+    user = AuthenticatedUser(
         id=user_id,
         email=email,
         is_super_admin=email in settings.super_admin_email_set,
     )
+    set_user_context(db, user_id=user.id, is_super_admin=user.is_super_admin)
+    return user
 
 
 def require_super_admin(
@@ -118,14 +121,41 @@ def _membership(db: Session, tenant_id: UUID, user_id: UUID) -> TenantMembership
     )
 
 
+def require_tenant_membership(
+    tenant_id: UUID = Path(...),
+    user: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AuthenticatedUser:
+    set_tenant_context(db, tenant_id)
+    if user.is_super_admin or _membership(db, tenant_id, user.id):
+        return user
+    raise HTTPException(status_code=403, detail="Cross-tenant access denied.")
+
+
 def require_tenant_access(
     tenant_id: UUID = Path(...),
     user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> AuthenticatedUser:
-    if user.is_super_admin or _membership(db, tenant_id, user.id):
+    require_tenant_membership(tenant_id=tenant_id, user=user, db=db)
+    if user.is_super_admin:
         return user
-    raise HTTPException(status_code=403, detail="Cross-tenant access denied.")
+    tenant = db.get(Tenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Client not found.")
+    if tenant.billing_status == BillingStatus.RESTRICTED:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": "billing_restricted",
+                "message": (
+                    "Client portal access is restricted until the overdue "
+                    "recurring invoice is paid."
+                ),
+                "payNowPath": f"/billing/{tenant_id}/status",
+            },
+        )
+    return user
 
 
 def require_tenant_admin(
@@ -133,10 +163,23 @@ def require_tenant_admin(
     user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> AuthenticatedUser:
+    set_tenant_context(db, tenant_id)
     if user.is_super_admin:
         return user
     membership = _membership(db, tenant_id, user.id)
     if membership and membership.role == MembershipRole.CLIENT_ADMIN:
+        tenant = db.get(Tenant, tenant_id)
+        if tenant is None:
+            raise HTTPException(status_code=404, detail="Client not found.")
+        if tenant.billing_status == BillingStatus.RESTRICTED:
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "code": "billing_restricted",
+                    "message": "Client portal access is restricted until payment is received.",
+                    "payNowPath": f"/billing/{tenant_id}/status",
+                },
+            )
         return user
     raise HTTPException(status_code=403, detail="Client-admin access required.")
 

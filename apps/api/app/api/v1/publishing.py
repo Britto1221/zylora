@@ -43,9 +43,13 @@ def submit(
         raise HTTPException(status_code=422, detail={"message": "Validation failed.", **validation})
     version.status = SiteVersionStatus.READY_FOR_REVIEW
     record_audit(
-        db, actor_user_id=user.id, tenant_id=version.tenant_id,
-        entity_type="site_version", entity_id=version.id,
-        action="publishing.submitted", payload=validation,
+        db,
+        actor_user_id=user.id,
+        tenant_id=version.tenant_id,
+        entity_type="site_version",
+        entity_id=version.id,
+        action="publishing.submitted",
+        payload=validation,
     )
     db.commit()
     return model_dict(version)
@@ -61,9 +65,13 @@ def request_changes(
     version = load_version(db, version_id)
     version.status = SiteVersionStatus.CHANGES_REQUESTED
     record_audit(
-        db, actor_user_id=user.id, tenant_id=version.tenant_id,
-        entity_type="site_version", entity_id=version.id,
-        action="publishing.changes_requested", payload={"reason": reason},
+        db,
+        actor_user_id=user.id,
+        tenant_id=version.tenant_id,
+        entity_type="site_version",
+        entity_id=version.id,
+        action="publishing.changes_requested",
+        payload={"reason": reason},
     )
     db.commit()
     return model_dict(version)
@@ -76,7 +84,10 @@ def approve(
     user: AuthenticatedUser = Depends(require_super_admin),
 ) -> dict:
     version = load_version(db, version_id)
-    if version.status not in {SiteVersionStatus.READY_FOR_REVIEW, SiteVersionStatus.CHANGES_REQUESTED}:
+    if version.status not in {
+        SiteVersionStatus.READY_FOR_REVIEW,
+        SiteVersionStatus.CHANGES_REQUESTED,
+    }:
         raise HTTPException(status_code=409, detail="Version is not ready for approval.")
     validation = validate_snapshot(
         version.content_snapshot, version.theme_snapshot, version.seo_snapshot
@@ -87,8 +98,11 @@ def approve(
     version.approved_by = user.id
     version.approved_at = datetime.utcnow()
     record_audit(
-        db, actor_user_id=user.id, tenant_id=version.tenant_id,
-        entity_type="site_version", entity_id=version.id,
+        db,
+        actor_user_id=user.id,
+        tenant_id=version.tenant_id,
+        entity_type="site_version",
+        entity_id=version.id,
         action="publishing.approved",
     )
     db.commit()
@@ -105,6 +119,8 @@ def publish(
     if version.status != SiteVersionStatus.APPROVED:
         raise HTTPException(status_code=409, detail="Only approved versions may be published.")
     site = db.get(Site, version.site_id)
+    if site is None:
+        raise HTTPException(status_code=404, detail="Site not found.")
     previous_id = site.published_version_id
     if previous_id:
         previous = db.get(SiteVersion, previous_id)
@@ -117,9 +133,13 @@ def publish(
     if site.draft_version_id == version.id:
         site.draft_version_id = None
     record_audit(
-        db, actor_user_id=user.id, tenant_id=version.tenant_id,
-        entity_type="site_version", entity_id=version.id,
-        action="publishing.published", payload={"previous_version_id": str(previous_id) if previous_id else None},
+        db,
+        actor_user_id=user.id,
+        tenant_id=version.tenant_id,
+        entity_type="site_version",
+        entity_id=version.id,
+        action="publishing.published",
+        payload={"previous_version_id": str(previous_id) if previous_id else None},
     )
     db.commit()
     return model_dict(version)
@@ -133,9 +153,14 @@ def rollback(
 ) -> dict:
     source = load_version(db, version_id)
     site = db.get(Site, source.site_id)
-    next_number = (db.scalar(
-        select(func.max(SiteVersion.version_number)).where(SiteVersion.site_id == site.id)
-    ) or 0) + 1
+    if site is None:
+        raise HTTPException(status_code=404, detail="Site not found.")
+    next_number = (
+        db.scalar(
+            select(func.max(SiteVersion.version_number)).where(SiteVersion.site_id == site.id)
+        )
+        or 0
+    ) + 1
     restored = SiteVersion(
         tenant_id=source.tenant_id,
         site_id=source.site_id,
@@ -159,9 +184,13 @@ def rollback(
     restored.published_at = datetime.utcnow()
     site.published_version_id = restored.id
     record_audit(
-        db, actor_user_id=user.id, tenant_id=restored.tenant_id,
-        entity_type="site_version", entity_id=restored.id,
-        action="publishing.rolled_back", payload={"source_version_id": str(source.id)},
+        db,
+        actor_user_id=user.id,
+        tenant_id=restored.tenant_id,
+        entity_type="site_version",
+        entity_id=restored.id,
+        action="publishing.rolled_back",
+        payload={"source_version_id": str(source.id)},
     )
     db.commit()
     return model_dict(restored)

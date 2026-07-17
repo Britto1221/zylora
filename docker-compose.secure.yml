@@ -1,0 +1,122 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: zylora
+      POSTGRES_USER: zylora
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    entrypoint: ["/usr/local/bin/zylora-secure-entrypoint.sh"]
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./infra/postgres/secure-entrypoint.sh:/usr/local/bin/zylora-secure-entrypoint.sh:ro
+    secrets:
+      - postgres_password
+      - postgres_server_crt
+      - postgres_server_key
+      - postgres_ca_crt
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zylora -d zylora"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        exec redis-server /etc/redis/redis.conf --requirepass "$$(cat /run/secrets/redis_password)"
+    volumes:
+      - redisdata:/data
+      - ./infra/redis/redis.conf:/etc/redis/redis.conf:ro
+    secrets:
+      - redis_password
+      - redis_server_crt
+      - redis_server_key
+      - redis_ca_crt
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          redis-cli --tls --cacert /run/secrets/redis_ca_crt
+          -a "$$(cat /run/secrets/redis_password)" ping | grep PONG
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --ping 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  migrate:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    env_file: .env.production
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    secrets:
+      - postgres_ca_crt
+      - redis_ca_crt
+
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    env_file: .env.production
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+      clamav: { condition: service_healthy }
+    secrets:
+      - postgres_ca_crt
+      - redis_ca_crt
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  worker:
+    build: { context: ., dockerfile: apps/worker/Dockerfile }
+    env_file: .env.production
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+      clamav: { condition: service_healthy }
+    secrets:
+      - postgres_ca_crt
+      - redis_ca_crt
+    restart: unless-stopped
+
+  web:
+    build: { context: ., dockerfile: apps/web/Dockerfile }
+    env_file: .env.production
+    depends_on:
+      api: { condition: service_healthy }
+    restart: unless-stopped
+
+volumes:
+  pgdata: {}
+  redisdata: {}
+
+secrets:
+  postgres_password: { file: ./secrets/postgres_password }
+  postgres_server_crt: { file: ./secrets/postgres_server.crt }
+  postgres_server_key: { file: ./secrets/postgres_server.key }
+  postgres_ca_crt: { file: ./secrets/postgres_ca.crt }
+  redis_password: { file: ./secrets/redis_password }
+  redis_server_crt: { file: ./secrets/redis_server.crt }
+  redis_server_key: { file: ./secrets/redis_server.key }
+  redis_ca_crt: { file: ./secrets/redis_ca.crt }

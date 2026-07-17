@@ -22,12 +22,12 @@ export default function LoginPage() {
         <div className="login-card">
           <p className="eyebrow">Administrator access</p>
           <h2>Welcome back.</h2>
-          <p className="lede">Use the development credentials below locally. Production authentication is handled by the configured identity provider.</p>
+          <p className="lede">Sign in through the configured OpenID Connect identity provider. Local development credentials appear only when explicitly enabled.</p>
           <Suspense fallback={<div className="notice">Loading secure sign-in…</div>}>
             <LoginForm />
           </Suspense>
           <p className="login-footnote">
-            Development: admin@zylora.dev / zylora-admin. This endpoint is disabled automatically when ENVIRONMENT=production.
+            Administrator access is granted only to verified identities and tenant memberships.
           </p>
         </div>
       </section>

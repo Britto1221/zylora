@@ -1,6 +1,22 @@
 from enum import StrEnum
 
 
+class TenantStatus(StrEnum):
+    ACTIVE = "active"
+    PAUSED = "paused"
+
+
+class BillingStatus(StrEnum):
+    CURRENT = "current"
+    WARNED = "warned"
+    RESTRICTED = "restricted"
+
+
+class InvoiceType(StrEnum):
+    ONE_TIME = "ONE_TIME"
+    RECURRING = "RECURRING"
+
+
 class MembershipRole(StrEnum):
     SUPER_ADMIN = "SUPER_ADMIN"
     CLIENT_ADMIN = "CLIENT_ADMIN"

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
 from sqlalchemy import select
@@ -189,5 +189,7 @@ def release_reservation(db: Session, reservation: CreditReservation, *, reason: 
         .with_for_update()
     )
     if account:
-        account.reserved_micro_usd = max(0, account.reserved_micro_usd - reservation.amount_micro_usd)
+        account.reserved_micro_usd = max(
+            0, account.reserved_micro_usd - reservation.amount_micro_usd
+        )
     reservation.status = "RELEASED"

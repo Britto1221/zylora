@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from zylora_ai.seo import audit_snapshot
 
-from app.core.security import AuthenticatedUser, require_tenant_access
+from app.core.security import AuthenticatedUser, require_tenant_access, require_tenant_admin
 from app.core.serialization import model_dict
 from app.db.models.entities import SeoAudit, Site, SiteVersion
 from app.db.models.enums import SeoAuditStatus
 from app.db.session import get_db
 from app.modules.audit.service import record_audit
-from zylora_ai.seo import audit_snapshot
 
 router = APIRouter(prefix="/seo", tags=["seo"])
 
@@ -35,7 +34,7 @@ def run_audit(
     tenant_id: UUID,
     version_id: UUID | None = None,
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_tenant_access),
+    user: AuthenticatedUser = Depends(require_tenant_admin),
 ) -> dict:
     site = db.scalar(select(Site).where(Site.tenant_id == tenant_id))
     if not site:
@@ -65,8 +64,12 @@ def run_audit(
         audit.status = SeoAuditStatus.FAILED
         audit.error_message = str(exc)
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="seo_audit", entity_id=audit.id, action="seo.audit_completed",
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="seo_audit",
+        entity_id=audit.id,
+        action="seo.audit_completed",
         payload={"status": audit.status.value, "score": audit.score},
     )
     db.commit()
@@ -79,7 +82,7 @@ def apply_recommendation(
     audit_id: UUID,
     recommendation_code: str,
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_tenant_access),
+    user: AuthenticatedUser = Depends(require_tenant_admin),
 ) -> dict:
     audit = db.scalar(
         select(SeoAudit).where(SeoAudit.id == audit_id, SeoAudit.tenant_id == tenant_id)
@@ -87,6 +90,8 @@ def apply_recommendation(
     if not audit:
         raise HTTPException(status_code=404, detail="SEO audit not found.")
     site = db.get(Site, audit.site_id)
+    if site is None:
+        raise HTTPException(status_code=404, detail="Site not found.")
     draft = db.get(SiteVersion, site.draft_version_id) if site.draft_version_id else None
     if not draft:
         raise HTTPException(status_code=409, detail="Create an editable draft first.")
@@ -98,14 +103,26 @@ def apply_recommendation(
         seo["title"] = content.get("businessName", "Business")
         applied = True
     elif recommendation_code == "missing_description":
-        seo["description"] = f"Explore the services offered by {content.get('businessName', 'this business')} and get in touch."
+        seo["description"] = (
+            "Explore the services offered by "
+            f"{content.get('businessName', 'this business')} and get in touch."
+        )
         applied = True
     elif recommendation_code == "missing_conversion":
         sections = list(content.get("sections", []))
-        sections.append({
-            "id": "contact", "type": "lead-form", "visible": True, "variant": "panel",
-            "content": {"heading": "Contact us", "body": "Tell us what you need.", "fields": ["name", "phone", "message"]},
-        })
+        sections.append(
+            {
+                "id": "contact",
+                "type": "lead-form",
+                "visible": True,
+                "variant": "panel",
+                "content": {
+                    "heading": "Contact us",
+                    "body": "Tell us what you need.",
+                    "fields": ["name", "phone", "message"],
+                },
+            }
+        )
         content["sections"] = sections
         applied = True
 
@@ -117,8 +134,11 @@ def apply_recommendation(
     draft.seo_snapshot = seo
     draft.content_snapshot = content
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="site_version", entity_id=draft.id,
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="site_version",
+        entity_id=draft.id,
         action="seo.recommendation_applied_to_draft",
         payload={"audit_id": str(audit.id), "code": recommendation_code},
     )
@@ -134,6 +154,7 @@ def audit_pdf(
     _: AuthenticatedUser = Depends(require_tenant_access),
 ):
     from fastapi.responses import Response
+
     from app.modules.reports.pdf import simple_pdf
 
     audit = db.scalar(

@@ -3,14 +3,14 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.security import AuthenticatedUser, require_tenant_access
-from app.db.models.entities import AnalyticsEvent, Lead
-from app.db.session import get_db
+from app.db.models.entities import AnalyticsEvent, Lead, Site
+from app.db.session import get_db, set_public_tenant_context
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -27,6 +27,18 @@ class AnalyticsEventCreate(BaseModel):
 
 @router.post("/public", status_code=202)
 def capture_event(payload: AnalyticsEventCreate, db: Session = Depends(get_db)) -> dict:
+    if payload.site_id is None:
+        raise HTTPException(status_code=422, detail="site_id is required.")
+    site = db.scalar(
+        select(Site).where(
+            Site.id == payload.site_id,
+            Site.tenant_id == payload.tenant_id,
+            Site.published_version_id.is_not(None),
+        )
+    )
+    if site is None:
+        raise HTTPException(status_code=404, detail="Published website not found.")
+    set_public_tenant_context(db, payload.tenant_id)
     event = AnalyticsEvent(
         tenant_id=payload.tenant_id,
         site_id=payload.site_id,
@@ -54,10 +66,14 @@ def overview(
         .where(AnalyticsEvent.tenant_id == tenant_id, AnalyticsEvent.created_at >= since)
         .group_by(AnalyticsEvent.event_type)
     ).all()
-    page_views = dict(rows).get("page_view", 0)
-    lead_count = db.scalar(
-        select(func.count(Lead.id)).where(Lead.tenant_id == tenant_id, Lead.created_at >= since)
-    ) or 0
+    event_counts = {str(event_type): int(count) for event_type, count in rows}
+    page_views = event_counts.get("page_view", 0)
+    lead_count = (
+        db.scalar(
+            select(func.count(Lead.id)).where(Lead.tenant_id == tenant_id, Lead.created_at >= since)
+        )
+        or 0
+    )
     top_pages = db.execute(
         select(AnalyticsEvent.path, func.count(AnalyticsEvent.id).label("count"))
         .where(

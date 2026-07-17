@@ -3,17 +3,18 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.security import AuthenticatedUser, require_super_admin, require_tenant_access
 from app.core.serialization import model_dict
-from app.db.models.entities import Invoice
-from app.db.models.enums import InvoiceStatus
+from app.db.models.entities import Invoice, Tenant
+from app.db.models.enums import InvoiceStatus, InvoiceType
 from app.db.session import get_db
 from app.modules.audit.service import record_audit
+from app.modules.billing.service import clear_billing_restriction
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
@@ -60,6 +61,9 @@ def create_invoice(
     invoice = Invoice(
         tenant_id=tenant_id,
         number=f"ZY-{datetime.utcnow().year}-{sequence:05d}",
+        invoice_type=InvoiceType.ONE_TIME,
+        billing_period=None,
+        auto_generated=False,
         currency=payload.currency.upper(),
         subtotal_minor=subtotal,
         tax_minor=payload.tax_minor,
@@ -70,9 +74,13 @@ def create_invoice(
     db.add(invoice)
     db.flush()
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="invoice", entity_id=invoice.id,
-        action="invoice.created", payload={"number": invoice.number},
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="invoice",
+        entity_id=invoice.id,
+        action="invoice.created",
+        payload={"number": invoice.number},
     )
     db.commit()
     return model_dict(invoice)
@@ -94,8 +102,12 @@ def issue_invoice(
         raise HTTPException(status_code=409, detail="Only draft invoices can be issued.")
     invoice.status = InvoiceStatus.ISSUED
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="invoice", entity_id=invoice.id, action="invoice.issued",
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="invoice",
+        entity_id=invoice.id,
+        action="invoice.issued",
     )
     db.commit()
     return model_dict(invoice)
@@ -115,9 +127,23 @@ def mark_paid(
         raise HTTPException(status_code=404, detail="Invoice not found.")
     invoice.status = InvoiceStatus.PAID
     invoice.paid_at = datetime.utcnow()
+    if invoice.invoice_type == InvoiceType.RECURRING:
+        tenant = db.get(Tenant, tenant_id)
+        if tenant:
+            clear_billing_restriction(
+                db,
+                tenant=tenant,
+                actor_user_id=user.id,
+                reason="super_admin_marked_recurring_invoice_paid",
+                action="billing.lockout_cleared_by_manual_payment",
+            )
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="invoice", entity_id=invoice.id, action="invoice.paid",
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="invoice",
+        entity_id=invoice.id,
+        action="invoice.paid",
     )
     db.commit()
     return model_dict(invoice)
@@ -131,6 +157,7 @@ def invoice_text(
     _: AuthenticatedUser = Depends(require_tenant_access),
 ):
     from fastapi.responses import PlainTextResponse
+
     invoice = db.scalar(
         select(Invoice).where(Invoice.id == invoice_id, Invoice.tenant_id == tenant_id)
     )
@@ -146,9 +173,16 @@ def invoice_text(
     for item in invoice.line_items:
         rows.append(
             f"{item.get('description', 'Service')} — "
-            f"{item.get('quantity', 1)} × {item.get('unitMinor', 0)} minor units"
+            f"{item.get('quantity', 1)} x {item.get('unitMinor', 0)} minor units"
         )
-    rows.extend(["", f"Subtotal: {invoice.subtotal_minor}", f"Tax: {invoice.tax_minor}", f"Total: {invoice.total_minor}"])
+    rows.extend(
+        [
+            "",
+            f"Subtotal: {invoice.subtotal_minor}",
+            f"Tax: {invoice.tax_minor}",
+            f"Total: {invoice.total_minor}",
+        ]
+    )
     return PlainTextResponse("\n".join(rows))
 
 
@@ -160,6 +194,7 @@ def invoice_pdf(
     _: AuthenticatedUser = Depends(require_tenant_access),
 ):
     from fastapi.responses import Response
+
     from app.modules.reports.pdf import simple_pdf
 
     invoice = db.scalar(
@@ -176,14 +211,16 @@ def invoice_pdf(
     for item in invoice.line_items:
         quantity = int(item.get("quantity", 1))
         unit = int(item.get("unitMinor", 0)) / 100
-        lines.append(f"{item.get('description', 'Service')} — {quantity} × {unit:.2f}")
-    lines.extend([
-        "",
-        f"Subtotal: {invoice.subtotal_minor / 100:.2f}",
-        f"Tax: {invoice.tax_minor / 100:.2f}",
-        f"Total: {invoice.total_minor / 100:.2f}",
-        f"Due: {invoice.due_at.isoformat() if invoice.due_at else 'On receipt'}",
-    ])
+        lines.append(f"{item.get('description', 'Service')} — {quantity} x {unit:.2f}")
+    lines.extend(
+        [
+            "",
+            f"Subtotal: {invoice.subtotal_minor / 100:.2f}",
+            f"Tax: {invoice.tax_minor / 100:.2f}",
+            f"Total: {invoice.total_minor / 100:.2f}",
+            f"Due: {invoice.due_at.isoformat() if invoice.due_at else 'On receipt'}",
+        ]
+    )
     return Response(
         simple_pdf(f"Zylora Invoice {invoice.number}", lines),
         media_type="application/pdf",

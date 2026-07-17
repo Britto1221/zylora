@@ -5,16 +5,35 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
-    Boolean, DateTime, Enum, ForeignKey, Index, Integer, JSON, Numeric,
-    String, Text, UniqueConstraint,
+    JSON,
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 from app.db.models.enums import (
-    ChangeRequestStatus, CreditTransactionType, DocumentStatus, DomainStatus,
-    InvoiceStatus, LeadStatus, MembershipRole, NotificationStatus,
-    SeoAuditStatus, SiteVersionStatus,
+    BillingStatus,
+    ChangeRequestStatus,
+    CreditTransactionType,
+    DocumentStatus,
+    DomainStatus,
+    InvoiceStatus,
+    InvoiceType,
+    LeadStatus,
+    MembershipRole,
+    NotificationStatus,
+    SeoAuditStatus,
+    SiteVersionStatus,
+    TenantStatus,
 )
 
 
@@ -43,16 +62,42 @@ class Tenant(Base, TimestampMixin):
     address: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     onboarding_complete: Mapped[bool] = mapped_column(Boolean, default=False)
+    monthly_amount_minor: Mapped[int] = mapped_column(Integer, default=0)
+    billing_currency: Mapped[str] = mapped_column(String(3), default="USD")
+    billing_day: Mapped[int] = mapped_column(Integer, default=1)
+    billing_status: Mapped[BillingStatus] = mapped_column(
+        Enum(BillingStatus), default=BillingStatus.CURRENT
+    )
+    operational_status: Mapped[TenantStatus] = mapped_column(
+        Enum(TenantStatus), default=TenantStatus.ACTIVE
+    )
+    paused_reason: Mapped[str | None] = mapped_column(Text)
+    paused_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    paused_by_user_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class TenantNote(Base):
+    __tablename__ = "tenant_notes"
+    __table_args__ = (Index("ix_tenant_notes_tenant_created", "tenant_id", "created_at"),)
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
+    author_user_id: Mapped[UUID] = mapped_column(index=True)
+    author_email: Mapped[str] = mapped_column(String(320))
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class TenantMembership(Base, TimestampMixin):
     __tablename__ = "tenant_memberships"
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "user_id", name="uq_membership_tenant_user"),
-    )
+    __table_args__ = (UniqueConstraint("tenant_id", "user_id", name="uq_membership_tenant_user"),)
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
     user_id: Mapped[UUID] = mapped_column(index=True)
     email: Mapped[str] = mapped_column(String(320), index=True)
     role: Mapped[MembershipRole] = mapped_column(Enum(MembershipRole))
@@ -62,7 +107,9 @@ class TenantMembership(Base, TimestampMixin):
 class Site(Base, TimestampMixin):
     __tablename__ = "sites"
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
     name: Mapped[str] = mapped_column(String(180))
     template_key: Mapped[str] = mapped_column(String(80), default="general")
     draft_version_id: Mapped[UUID | None] = mapped_column(nullable=True)
@@ -77,10 +124,14 @@ class SiteVersion(Base, TimestampMixin):
         Index("ix_site_versions_tenant_status", "tenant_id", "status"),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
     site_id: Mapped[UUID] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
     version_number: Mapped[int] = mapped_column(Integer)
-    status: Mapped[SiteVersionStatus] = mapped_column(Enum(SiteVersionStatus), default=SiteVersionStatus.DRAFT)
+    status: Mapped[SiteVersionStatus] = mapped_column(
+        Enum(SiteVersionStatus), default=SiteVersionStatus.DRAFT
+    )
     content_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
     theme_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
     seo_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -94,11 +145,11 @@ class SiteVersion(Base, TimestampMixin):
 
 class Lead(Base, TimestampMixin):
     __tablename__ = "leads"
-    __table_args__ = (
-        Index("ix_leads_tenant_status_created", "tenant_id", "status", "created_at"),
-    )
+    __table_args__ = (Index("ix_leads_tenant_status_created", "tenant_id", "status", "created_at"),)
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
     site_id: Mapped[UUID] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(180))
     email: Mapped[str | None] = mapped_column(String(320))
@@ -126,11 +177,11 @@ class LeadNote(Base):
 
 class CreditAccount(Base, TimestampMixin):
     __tablename__ = "credit_accounts"
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "currency", name="uq_credit_account_currency"),
-    )
+    __table_args__ = (UniqueConstraint("tenant_id", "currency", name="uq_credit_account_currency"),)
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
     currency: Mapped[str] = mapped_column(String(3), default="USD")
     balance_micro_usd: Mapped[int] = mapped_column(Integer, default=0)
     reserved_micro_usd: Mapped[int] = mapped_column(Integer, default=0)
@@ -143,7 +194,9 @@ class CreditReservation(Base, TimestampMixin):
     __table_args__ = (UniqueConstraint("idempotency_key", name="uq_reservation_key"),)
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     tenant_id: Mapped[UUID] = mapped_column(index=True)
-    credit_account_id: Mapped[UUID] = mapped_column(ForeignKey("credit_accounts.id", ondelete="CASCADE"), index=True)
+    credit_account_id: Mapped[UUID] = mapped_column(
+        ForeignKey("credit_accounts.id", ondelete="CASCADE"), index=True
+    )
     amount_micro_usd: Mapped[int] = mapped_column(Integer)
     idempotency_key: Mapped[str] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(30), default="ACTIVE")
@@ -160,7 +213,9 @@ class CreditTransaction(Base):
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     tenant_id: Mapped[UUID] = mapped_column(index=True)
-    credit_account_id: Mapped[UUID] = mapped_column(ForeignKey("credit_accounts.id", ondelete="CASCADE"), index=True)
+    credit_account_id: Mapped[UUID] = mapped_column(
+        ForeignKey("credit_accounts.id", ondelete="CASCADE"), index=True
+    )
     type: Mapped[CreditTransactionType] = mapped_column(Enum(CreditTransactionType))
     amount_micro_usd: Mapped[int] = mapped_column()
     balance_after_micro_usd: Mapped[int] = mapped_column()
@@ -192,19 +247,28 @@ class NotificationJob(Base, TimestampMixin):
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     tenant_id: Mapped[UUID] = mapped_column(index=True)
-    lead_id: Mapped[UUID] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
+    lead_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("leads.id", ondelete="CASCADE"), index=True, nullable=True
+    )
     recipient_type: Mapped[str] = mapped_column(String(30))
     recipient: Mapped[str] = mapped_column(String(80))
     template_name: Mapped[str] = mapped_column(String(120))
     template_language: Mapped[str] = mapped_column(String(10), default="en")
     template_variables: Mapped[dict] = mapped_column(JSON, default=dict)
-    status: Mapped[NotificationStatus] = mapped_column(Enum(NotificationStatus), default=NotificationStatus.PENDING)
+    status: Mapped[NotificationStatus] = mapped_column(
+        Enum(NotificationStatus), default=NotificationStatus.PENDING
+    )
     charge_micro_usd: Mapped[int] = mapped_column(Integer, default=0)
     provider_message_id: Mapped[str | None] = mapped_column(String(255))
+    provider_status: Mapped[str | None] = mapped_column(String(40))
+    provider_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     idempotency_key: Mapped[str] = mapped_column(String(255))
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     failure_reason: Mapped[str | None] = mapped_column(Text)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    refunded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Domain(Base, TimestampMixin):
@@ -225,9 +289,7 @@ class Domain(Base, TimestampMixin):
 
 class ApiCredential(Base, TimestampMixin):
     __tablename__ = "api_credentials"
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "provider", name="uq_api_credential_provider"),
-    )
+    __table_args__ = (UniqueConstraint("tenant_id", "provider", name="uq_api_credential_provider"),)
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     tenant_id: Mapped[UUID] = mapped_column(index=True)
     provider: Mapped[str] = mapped_column(String(50))
@@ -241,28 +303,47 @@ class Payment(Base, TimestampMixin):
     __tablename__ = "payments"
     __table_args__ = (
         UniqueConstraint("provider", "provider_payment_id", name="uq_provider_payment"),
+        UniqueConstraint("provider", "provider_order_id", name="uq_provider_order"),
         Index("ix_payments_tenant_status", "tenant_id", "status"),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     tenant_id: Mapped[UUID] = mapped_column(index=True)
     provider: Mapped[str] = mapped_column(String(40))
-    provider_payment_id: Mapped[str] = mapped_column(String(255))
-    provider_order_id: Mapped[str | None] = mapped_column(String(255))
+    provider_payment_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    provider_order_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pack_id: Mapped[str | None] = mapped_column(String(40))
+    invoice_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("invoices.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    purpose: Mapped[str] = mapped_column(String(40), default="credits")
     charged_amount_minor: Mapped[int] = mapped_column(Integer)
     charged_currency: Mapped[str] = mapped_column(String(3))
     usd_credit_micro_amount: Mapped[int] = mapped_column(Integer, default=0)
     settlement_amount_inr_minor: Mapped[int | None] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(40), index=True)
+    checkout_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    captured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
 class Invoice(Base, TimestampMixin):
     __tablename__ = "invoices"
-    __table_args__ = (UniqueConstraint("number", name="uq_invoice_number"),)
+    __table_args__ = (
+        UniqueConstraint("number", name="uq_invoice_number"),
+        UniqueConstraint(
+            "tenant_id", "invoice_type", "billing_period",
+            name="uq_recurring_invoice_period",
+        ),
+    )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     tenant_id: Mapped[UUID] = mapped_column(index=True)
     number: Mapped[str] = mapped_column(String(40), index=True)
     status: Mapped[InvoiceStatus] = mapped_column(Enum(InvoiceStatus), default=InvoiceStatus.DRAFT)
+    invoice_type: Mapped[InvoiceType] = mapped_column(
+        Enum(InvoiceType), default=InvoiceType.ONE_TIME
+    )
+    billing_period: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    auto_generated: Mapped[bool] = mapped_column(Boolean, default=False)
     currency: Mapped[str] = mapped_column(String(3), default="USD")
     subtotal_minor: Mapped[int] = mapped_column(Integer)
     tax_minor: Mapped[int] = mapped_column(Integer, default=0)
@@ -274,9 +355,7 @@ class Invoice(Base, TimestampMixin):
 
 class WebhookEvent(Base):
     __tablename__ = "webhook_events"
-    __table_args__ = (
-        UniqueConstraint("provider", "event_id", name="uq_webhook_provider_event"),
-    )
+    __table_args__ = (UniqueConstraint("provider", "event_id", name="uq_webhook_provider_event"),)
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     provider: Mapped[str] = mapped_column(String(40), index=True)
     event_id: Mapped[str] = mapped_column(String(255))
@@ -298,7 +377,9 @@ class Document(Base, TimestampMixin):
     storage_key: Mapped[str | None] = mapped_column(String(500))
     raw_text: Mapped[str | None] = mapped_column(Text)
     extracted_json: Mapped[dict] = mapped_column(JSON, default=dict)
-    status: Mapped[DocumentStatus] = mapped_column(Enum(DocumentStatus), default=DocumentStatus.UPLOADED)
+    status: Mapped[DocumentStatus] = mapped_column(
+        Enum(DocumentStatus), default=DocumentStatus.UPLOADED
+    )
     error_message: Mapped[str | None] = mapped_column(Text)
 
 
@@ -306,7 +387,9 @@ class DocumentChunk(Base):
     __tablename__ = "document_chunks"
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     tenant_id: Mapped[UUID] = mapped_column(index=True)
-    document_id: Mapped[UUID] = mapped_column(ForeignKey("documents.id", ondelete="CASCADE"), index=True)
+    document_id: Mapped[UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), index=True
+    )
     position: Mapped[int] = mapped_column(Integer)
     content: Mapped[str] = mapped_column(Text)
     embedding_json: Mapped[list] = mapped_column(JSON, default=list)
@@ -326,7 +409,9 @@ class ChatMessage(Base):
     __tablename__ = "chat_messages"
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     tenant_id: Mapped[UUID] = mapped_column(index=True)
-    conversation_id: Mapped[UUID] = mapped_column(ForeignKey("chat_conversations.id", ondelete="CASCADE"), index=True)
+    conversation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("chat_conversations.id", ondelete="CASCADE"), index=True
+    )
     role: Mapped[str] = mapped_column(String(20))
     content: Mapped[str] = mapped_column(Text)
     citations_json: Mapped[list] = mapped_column(JSON, default=list)
@@ -339,7 +424,9 @@ class SeoAudit(Base, TimestampMixin):
     tenant_id: Mapped[UUID] = mapped_column(index=True)
     site_id: Mapped[UUID] = mapped_column(index=True)
     version_id: Mapped[UUID | None] = mapped_column(index=True)
-    status: Mapped[SeoAuditStatus] = mapped_column(Enum(SeoAuditStatus), default=SeoAuditStatus.QUEUED)
+    status: Mapped[SeoAuditStatus] = mapped_column(
+        Enum(SeoAuditStatus), default=SeoAuditStatus.QUEUED
+    )
     score: Mapped[int | None] = mapped_column(Integer)
     grade: Mapped[str | None] = mapped_column(String(2))
     summary: Mapped[str | None] = mapped_column(Text)
@@ -372,7 +459,9 @@ class ChangeRequest(Base, TimestampMixin):
     title: Mapped[str] = mapped_column(String(220))
     description: Mapped[str] = mapped_column(Text)
     priority: Mapped[str] = mapped_column(String(20), default="NORMAL")
-    status: Mapped[ChangeRequestStatus] = mapped_column(Enum(ChangeRequestStatus), default=ChangeRequestStatus.OPEN)
+    status: Mapped[ChangeRequestStatus] = mapped_column(
+        Enum(ChangeRequestStatus), default=ChangeRequestStatus.OPEN
+    )
     requested_by: Mapped[UUID | None] = mapped_column(nullable=True)
     quoted_price_minor: Mapped[int | None] = mapped_column(Integer)
     currency: Mapped[str] = mapped_column(String(3), default="USD")
@@ -411,7 +500,9 @@ class ClientInvitation(Base, TimestampMixin):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     tenant_id: Mapped[UUID] = mapped_column(index=True)
     email: Mapped[str] = mapped_column(String(320), index=True)
-    role: Mapped[MembershipRole] = mapped_column(Enum(MembershipRole), default=MembershipRole.CLIENT_ADMIN)
+    role: Mapped[MembershipRole] = mapped_column(
+        Enum(MembershipRole), default=MembershipRole.CLIENT_ADMIN
+    )
     token_hash: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(30), default="PENDING")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -422,17 +513,20 @@ class ClientInvitation(Base, TimestampMixin):
 
 class Asset(Base, TimestampMixin):
     __tablename__ = "assets"
-    __table_args__ = (
-        Index("ix_assets_tenant_created", "tenant_id", "created_at"),
-    )
+    __table_args__ = (Index("ix_assets_tenant_created", "tenant_id", "created_at"),)
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     tenant_id: Mapped[UUID] = mapped_column(index=True)
     filename: Mapped[str] = mapped_column(String(255))
     storage_key: Mapped[str] = mapped_column(String(500), unique=True)
     mime_type: Mapped[str] = mapped_column(String(120))
+    detected_mime_type: Mapped[str | None] = mapped_column(String(120))
     size_bytes: Mapped[int] = mapped_column(Integer)
     category: Mapped[str] = mapped_column(String(80), default="general")
     alt_text: Mapped[str | None] = mapped_column(String(500))
     status: Mapped[str] = mapped_column(String(30), default="PENDING")
+    scan_status: Mapped[str] = mapped_column(String(30), default="PENDING")
+    scan_provider: Mapped[str | None] = mapped_column(String(40))
+    scan_details: Mapped[dict] = mapped_column(JSON, default=dict)
+    scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     public_url: Mapped[str | None] = mapped_column(String(1000))
     checksum_sha256: Mapped[str | None] = mapped_column(String(64))

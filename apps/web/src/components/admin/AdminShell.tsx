@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 const navigation = [
   { href: "/admin/dashboard", label: "Overview", icon: "01" },
   { href: "/admin/clients", label: "Clients", icon: "02" },
-  { href: "/admin/system", label: "System", icon: "03" },
+  { href: "/admin/revenue", label: "Revenue", icon: "03" },
+  { href: "/admin/system", label: "System", icon: "04" },
 ];
 
 export function AdminShell({

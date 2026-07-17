@@ -4,11 +4,17 @@ from copy import deepcopy
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.security import AuthenticatedUser, get_current_user, require_super_admin, require_tenant_access
+from app.core.security import (
+    AuthenticatedUser,
+    get_current_user,
+    require_super_admin,
+    require_tenant_access,
+    require_tenant_admin,
+)
 from app.core.serialization import model_dict
 from app.db.models.entities import Domain, FeatureFlag, Site, SiteVersion, Tenant
 from app.db.models.enums import DomainStatus, SiteVersionStatus
@@ -71,7 +77,9 @@ def tenant_site(
 ) -> dict:
     site = get_site_for_tenant(db, tenant_id)
     draft = get_draft(db, site)
-    published = db.get(SiteVersion, site.published_version_id) if site.published_version_id else None
+    published = (
+        db.get(SiteVersion, site.published_version_id) if site.published_version_id else None
+    )
     return {
         "site": model_dict(site),
         "draft": model_dict(draft),
@@ -87,7 +95,7 @@ def update_draft(
     tenant_id: UUID,
     payload: DraftUpdate,
     db: Session = Depends(get_db),
-    user: AuthenticatedUser = Depends(require_tenant_access),
+    user: AuthenticatedUser = Depends(require_tenant_admin),
 ) -> dict:
     site = get_site_for_tenant(db, tenant_id)
     draft = get_draft(db, site)
@@ -102,14 +110,16 @@ def update_draft(
     if payload.seo is not None:
         draft.seo_snapshot = payload.seo
 
-    validation = validate_snapshot(
-        draft.content_snapshot, draft.theme_snapshot, draft.seo_snapshot
-    )
+    validation = validate_snapshot(draft.content_snapshot, draft.theme_snapshot, draft.seo_snapshot)
     draft.validation_snapshot = validation
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="site_version", entity_id=draft.id,
-        action="site.draft_updated", payload={"validation": validation},
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="site_version",
+        entity_id=draft.id,
+        action="site.draft_updated",
+        payload={"validation": validation},
     )
     db.commit()
     return {"draft": model_dict(draft), "validation": validation}
@@ -133,15 +143,22 @@ def create_draft(
     elif site.draft_version_id:
         source = db.get(SiteVersion, site.draft_version_id)
 
-    next_number = (db.scalar(
-        select(func.max(SiteVersion.version_number)).where(SiteVersion.site_id == site.id)
-    ) or 0) + 1
+    next_number = (
+        db.scalar(
+            select(func.max(SiteVersion.version_number)).where(SiteVersion.site_id == site.id)
+        )
+        or 0
+    ) + 1
     tenant = db.get(Tenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Tenant not found.")
     version = SiteVersion(
         tenant_id=tenant_id,
         site_id=site.id,
         version_number=next_number,
-        content_snapshot=deepcopy(source.content_snapshot) if source else default_content(tenant.name, site.template_key),
+        content_snapshot=deepcopy(source.content_snapshot)
+        if source
+        else default_content(tenant.name, site.template_key),
         theme_snapshot=deepcopy(source.theme_snapshot) if source else default_theme(),
         seo_snapshot=deepcopy(source.seo_snapshot) if source else default_seo(tenant.name),
         created_by=user.id,
@@ -150,9 +167,13 @@ def create_draft(
     db.flush()
     site.draft_version_id = version.id
     record_audit(
-        db, actor_user_id=user.id, tenant_id=tenant_id,
-        entity_type="site_version", entity_id=version.id,
-        action="site.draft_created", payload={"version": next_number},
+        db,
+        actor_user_id=user.id,
+        tenant_id=tenant_id,
+        entity_type="site_version",
+        entity_id=version.id,
+        action="site.draft_created",
+        payload={"version": next_number},
     )
     db.commit()
     return model_dict(version)
@@ -194,9 +215,9 @@ def resolve_public_site(
         raise HTTPException(status_code=404, detail="Published website not found.")
     version = db.get(SiteVersion, site.published_version_id)
     tenant = db.get(Tenant, site.tenant_id)
-    flags = db.scalars(
-        select(FeatureFlag).where(FeatureFlag.tenant_id == site.tenant_id)
-    ).all()
+    if version is None or tenant is None:
+        raise HTTPException(status_code=404, detail="Published website data is incomplete.")
+    flags = db.scalars(select(FeatureFlag).where(FeatureFlag.tenant_id == site.tenant_id)).all()
     features = {flag.key: flag.enabled for flag in flags}
     return {
         "siteId": str(site.id),
@@ -222,11 +243,17 @@ def preview(
         raise HTTPException(status_code=404, detail="Version not found.")
     site = db.get(Site, version.site_id)
     tenant = db.get(Tenant, version.tenant_id)
+    if site is None or tenant is None:
+        raise HTTPException(status_code=404, detail="Preview website data is incomplete.")
     return {
-        "siteId": str(site.id), "versionId": str(version.id),
-        "tenantId": str(version.tenant_id), "tenantSlug": tenant.slug,
-        "templateKey": site.template_key, "content": version.content_snapshot,
-        "theme": version.theme_snapshot, "seo": version.seo_snapshot,
+        "siteId": str(site.id),
+        "versionId": str(version.id),
+        "tenantId": str(version.tenant_id),
+        "tenantSlug": tenant.slug,
+        "templateKey": site.template_key,
+        "content": version.content_snapshot,
+        "theme": version.theme_snapshot,
+        "seo": version.seo_snapshot,
         "features": {},
         "preview": True,
     }

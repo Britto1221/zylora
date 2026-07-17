@@ -46,7 +46,10 @@ export function proxy(request: NextRequest) {
     return response;
   }
 
-  const response = NextResponse.next();
+  const forwardedHeaders = new Headers(request.headers);
+  forwardedHeaders.set("x-zylora-pathname", pathname);
+  forwardedHeaders.set("x-zylora-host", host);
+  const response = NextResponse.next({ request: { headers: forwardedHeaders } });
   response.headers.set("x-zylora-host", host);
   return response;
 }
