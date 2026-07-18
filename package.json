@@ -7,7 +7,7 @@
     "packages/ui"
   ],
   "scripts": {
-    "dev:web": "npm --workspace apps/web run dev",
+    "dev:web": "npm --prefix apps/web run dev",
     "build:web": "npm --workspace apps/web run build",
     "lint:web": "npm --workspace apps/web run lint",
     "typecheck:web": "npm --workspace apps/web run typecheck",
